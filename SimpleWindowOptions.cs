@@ -1,6 +1,6 @@
 using System.Numerics;
 
-namespace ImguiWindows
+namespace ImGuiWindows
 {
     public readonly record struct SimpleWindowOptions(
         Vector2 Size,

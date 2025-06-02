@@ -1,6 +1,6 @@
 using ImGuiNET;
 
-namespace ImguiWindows
+namespace ImGuiWindows
 {
     // ReSharper disable once SuggestBaseTypeForParameterInConstructor
     public sealed class ImFonts(ImFontPtr[] fonts) 

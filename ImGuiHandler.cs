@@ -3,7 +3,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using ImGuiNET;
 
-namespace ImguiWindows
+namespace ImGuiWindows
 {
     internal sealed class ImGuiHandler
     {

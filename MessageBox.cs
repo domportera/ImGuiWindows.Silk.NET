@@ -1,7 +1,7 @@
 using System.Numerics;
 using ImGuiNET;
 
-namespace ImguiWindows;
+namespace ImGuiWindows;
 
 internal sealed class MessageBox<T> : IImguiDrawer<T>
 {

@@ -1,4 +1,4 @@
-namespace ImguiWindows
+namespace ImGuiWindows
 {
     public static class ImGuiWindowService
     {

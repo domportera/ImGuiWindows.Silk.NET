@@ -1,5 +1,5 @@
 
-namespace ImguiWindows
+namespace ImGuiWindows
 {
     public abstract class AsyncImguiDrawer<T> : IImguiDrawer<T>
     {
