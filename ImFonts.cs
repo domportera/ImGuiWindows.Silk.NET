@@ -69,5 +69,10 @@ namespace ImGuiWindows
         {
             return Show(title, new MessageBox<T>(text, buttons, toButtonLabel), autoScale);
         }
+        
+        public T? ShowMessageBox<T>(string text, string title, Func<T, string>? toButtonLabel, bool autoScale, SimpleWindowOptions options, params T[]? buttons)
+        {
+            return Show(title, new MessageBox<T>(text, buttons, toButtonLabel), autoScale, options);
+        }
     }
 }
