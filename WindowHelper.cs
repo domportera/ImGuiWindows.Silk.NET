@@ -11,10 +11,10 @@ namespace ImGuiWindows
     
         private readonly Func<IWindow, float> _getWindowScale;
         private readonly bool _autoScaleImgui;
-        public WindowHelper(IWindowImplementation window, IImguiDrawer drawer, FontPack? fontPack, object? graphicsContextLockObj, Func<IWindow, float> getWindowScale, bool autoScaleImgui)
+        public WindowHelper(IWindowImplementation window, IImguiDrawer drawer, FontPack? fontPack, object? graphicsContextLockObj, Func<IWindow, float> getWindowScale, WindowSizeFlags windowSizeFlags)
         {
             _getWindowScale = getWindowScale;
-            _autoScaleImgui = autoScaleImgui;
+            _autoScaleImgui = windowSizeFlags.HasFlag(WindowSizeFlags.ResizeGui);
             _windowImpl = window;
             _drawer = drawer;
             _fontPack = fontPack;

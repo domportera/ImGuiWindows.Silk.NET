@@ -6,6 +6,19 @@ namespace ImGuiWindows
         Vector2 Size,
         int Fps,
         bool Vsync,
-        bool IsResizable,
-        bool AlwaysOnTop = true);
+        WindowSizeFlags SizeFlags,
+        bool AlwaysOnTop = false)
+    {
+        public bool IsResizable =>
+            SizeFlags.HasFlag(WindowSizeFlags.ResizeGui);
+    }
+
+    [Flags]
+    public enum WindowSizeFlags
+    {
+        None = 0,
+        ResizeWindow = 1 << 0,
+        ResizeGui = 1 << 1,
+    }
+
 }
