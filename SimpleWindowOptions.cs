@@ -7,6 +7,7 @@ namespace ImGuiWindows
         int Fps,
         bool Vsync,
         WindowSizeFlags SizeFlags,
+        bool RenderLoopWaitsForEvents,
         bool AlwaysOnTop = false)
     {
         public bool IsResizable =>
