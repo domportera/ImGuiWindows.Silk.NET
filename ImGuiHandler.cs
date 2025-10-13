@@ -17,8 +17,8 @@ namespace ImGuiWindows
         private ImFonts? _fontObj;
         private readonly IntPtr _context;
         private readonly int _myWindowId;
-        private static int _incrementingWindowId = 0;
-        private bool _autoScaleContent;
+        private static int _incrementingWindowId;
+        private readonly bool _autoScaleContent;
     
     
         public ImGuiHandler(IImguiImplementation impl, IImguiDrawer drawer, FontPack? fontPack, object? lockObj, bool autoScaleContent)
