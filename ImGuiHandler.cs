@@ -19,9 +19,10 @@ namespace ImGuiWindows
         private readonly int _myWindowId;
         private static int _incrementingWindowId;
         private readonly bool _autoScaleContent;
-    
-    
-        public ImGuiHandler(IImguiImplementation impl, IImguiDrawer drawer, FontPack? fontPack, object? lockObj, bool autoScaleContent)
+
+
+        public ImGuiHandler(IImguiImplementation impl, IImguiDrawer drawer, FontPack? fontPack, object? lockObj,
+            bool autoScaleContent)
         {
             _autoScaleContent = autoScaleContent;
             _windowTitle = impl.Title;
@@ -31,9 +32,9 @@ namespace ImGuiWindows
             _fontPack = fontPack;
             _contextLock = lockObj ?? new object();
             _imguiController = impl;
-        
+
             _myWindowId = Interlocked.Increment(ref _incrementingWindowId);
-        
+
             lock (_contextLock)
             {
                 var previousContext = ImGui.GetCurrentContext();
@@ -42,42 +43,42 @@ namespace ImGuiWindows
                 _drawer.Init();
             }
         }
-    
+
         private unsafe void InitializeStyle()
         {
             if (_originalContext.HasValue)
             {
                 var myContext = ImGui.GetCurrentContext();
-            
+
                 // first we switch to the previous imgui context
                 ImGui.SetCurrentContext(_originalContext.Value);
-            
+
                 // we copy the style from the previous context
                 ImGuiStyle copiedStyle = default;
                 Unsafe.Copy(destination: ref copiedStyle, source: ImGui.GetStyle().NativePtr);
-            
+
                 // we switch back to our own context
                 ImGui.SetCurrentContext(myContext);
-            
+
                 // we apply the copied style to the current context
                 Unsafe.Copy(ImGui.GetStyle().NativePtr, ref copiedStyle);
             }
-        
+
             var colorVector = ImGui.GetStyle().Colors[(int)ImGuiCol.WindowBg];
             var colorVecByteValue = colorVector * 255;
             ClearColor = Color.FromArgb((int)colorVecByteValue.X, (int)colorVecByteValue.Y, (int)colorVecByteValue.Z);
-        
+
             // do we need or want to do this?
             ImGui.GetIO().ConfigFlags |= ImGuiConfigFlags.ViewportsEnable;
-        
+
             if (!_fontPack.HasValue)
             {
                 _fontObj = new ImFonts([]);
                 return;
             }
-        
+
             var fontPack = _fontPack.Value;
-        
+
             var io = ImGui.GetIO();
             var fontAtlasPtr = io.Fonts;
             var fonts = new ImFontPtr[4];
@@ -85,15 +86,15 @@ namespace ImGuiWindows
             fonts[1] = fontAtlasPtr.AddFontFromFileTTF(fontPack.Regular.Path, fontPack.Regular.PixelSize);
             fonts[2] = fontAtlasPtr.AddFontFromFileTTF(fontPack.Bold.Path, fontPack.Bold.PixelSize);
             fonts[3] = fontAtlasPtr.AddFontFromFileTTF(fontPack.Large.Path, fontPack.Large.PixelSize);
-        
+
             if (!fontAtlasPtr.Build())
             {
                 Console.WriteLine("Failed to build font atlas");
             }
-        
+
             _fontObj = new ImFonts(fonts);
         }
-    
+
         public void Draw(Vector2 windowSize, double deltaTime, float systemWindowScaling)
         {
             lock (_contextLock)
@@ -103,6 +104,7 @@ namespace ImGuiWindows
                 {
                     contextToRestore = _originalContext ?? _context;
                 }
+
                 ImGui.SetCurrentContext(_context);
                 var originalStyle = ImGui.GetStyle();
                 Span<float> originalFontScales = stackalloc float[5];
@@ -112,51 +114,52 @@ namespace ImGuiWindows
                     originalStyle.ScaleAllSizes(scaleFactor);
                     originalFontScales[4] = ImGui.GetFont().Scale;
                     ImGui.GetFont().Scale *= scaleFactor;
-                    for(int i = 0; i < _fontObj!.Count; i++)
+                    for (int i = 0; i < _fontObj!.Count; i++)
                     {
                         originalFontScales[i] = _fontObj[i].Scale;
                         _fontObj[i].Scale *= scaleFactor;
                     }
                 }
+
                 _imguiController.StartImguiFrame((float)deltaTime);
-                
+
                 ImGui.PushID(_myWindowId);
-            
+
                 ImGui.SetNextWindowSize(windowSize);
                 ImGui.SetNextWindowPos(new Vector2(0, 0));
-            
+
                 const ImGuiWindowFlags windowFlags = ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize |
                                                      ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.AlwaysAutoResize;
-                
+
                 ImGui.Begin(_mainWindowId, windowFlags);
-            
+
                 ImGui.BeginChild(_childWindowId, Vector2.Zero, false);
                 ImGui.PushID(_windowTitle);
                 _drawer.OnRender(_windowTitle, deltaTime, _fontObj!, systemWindowScaling);
                 ImGui.PopID();
                 ImGui.EndChild();
-            
+
                 ImGui.PopID();
-            
+
                 ImGui.End();
-            
+
                 _imguiController.EndImguiFrame();
-                
+
                 if (_autoScaleContent)
                 {
                     originalStyle.ScaleAllSizes(systemWindowScaling);
                     ImGui.GetFont().Scale = originalFontScales[4];
-                    for(int i = 0; i < _fontObj!.Count; i++)
+                    for (int i = 0; i < _fontObj!.Count; i++)
                     {
                         _fontObj[i].Scale = originalFontScales[i];
                     }
                 }
-            
+
                 // restore
                 ImGui.SetCurrentContext(contextToRestore);
             }
         }
-    
+
         public void Dispose()
         {
             lock (_contextLock)
@@ -165,27 +168,26 @@ namespace ImGuiWindows
                 _imguiController.Dispose();
             }
         }
-    
+
         private readonly IImguiImplementation _imguiController;
         public Color? ClearColor { get; private set; }
-    
+
         // forwards window events
         public void OnWindowUpdate(double deltaSeconds, out bool shouldCloseWindow)
         {
             _drawer.OnWindowUpdate(deltaSeconds, out shouldCloseWindow);
-            
+
             // calculate dpi 
         }
-        
+
         public void OnWindowFocusChanged(bool isFocused)
         {
             _drawer.OnWindowFocusChanged(isFocused);
         }
-    
+
         public void OnFileDrop(string[] filePaths)
         {
             _drawer.OnFileDrop(filePaths);
         }
-
     }
 }

@@ -1,4 +1,3 @@
-
 namespace ImGuiWindows
 {
     public interface IImguiDrawer

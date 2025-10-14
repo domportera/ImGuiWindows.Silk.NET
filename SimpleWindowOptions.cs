@@ -21,5 +21,4 @@ namespace ImGuiWindows
         ResizeWindow = 1 << 0,
         ResizeGui = 1 << 1,
     }
-
 }

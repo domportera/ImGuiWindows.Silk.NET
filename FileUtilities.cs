@@ -60,5 +60,4 @@ public static class FileUtilities
         folderOpener.Start();
         folderOpener.WaitForExit();
     }
-
 }
