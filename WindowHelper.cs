@@ -29,18 +29,26 @@ namespace ImGuiWindows
             SubscribeToWindow();
             _window.Run();
             UnsubscribeFromWindow();
-            Dispose();
+            
+            try
+            {
+                Dispose();
+            }
+            catch(Exception e)
+            {
+                Console.Error.WriteLine($"Error disposing of window: {e}");
+            }
 
             return;
 
             void Dispose()
             {
-                _windowImpl.Dispose();
 
                 _graphicsContext?.Dispose();
                 _inputContext?.Dispose();
                 _window.Dispose();
 
+                _windowImpl.Dispose();
                 _graphicsContext = null;
                 _inputContext = null;
             }
