@@ -9,12 +9,13 @@ namespace ImGuiWindows;
 public sealed class WindowRunner
 {
     public readonly object RenderContextLock = new();
+
     static WindowRunner()
     {
         SdlWindowing.RegisterPlatform();
         SdlInput.RegisterPlatform();
     }
-    
+
     private readonly IImguiWindowProvider _windowProvider;
 
     public WindowRunner(IImguiWindowProvider windowProvider, SynchronizationContext? mainThreadContext = null)
@@ -23,11 +24,11 @@ public sealed class WindowRunner
         var context = mainThreadContext ?? SynchronizationContext.Current ?? new SynchronizationContext();
         MainThreadContext = context;
     }
-    
+
     internal IReadOnlyList<ImGuiWindow> Windows => _windows;
     private readonly List<ImGuiWindow> _windows = new();
     public SynchronizationContext MainThreadContext { get; }
-    
+
 
     // todo - runtime font updates while window is running
     private bool IsClosed(IImguiDrawer drawer)
@@ -39,17 +40,17 @@ public sealed class WindowRunner
                 return _windows[i].IsClosed;
             }
         }
-        
+
         throw new Exception("Drawer not found");
     }
 
-    
+
     public async Task<TData?> Show<TData>(string title, IImguiDrawer<TData> drawer, SimpleWindowOptions? options = null)
     {
         await Show(title, (IImguiDrawer)drawer, options);
         return drawer.Result;
     }
-    
+
     // we can't simply return the result here, because nullable type constraints dont work between reference and value types
     public async Task Show<TData>(string title, AsyncImguiDrawer<TData> drawer, Action<TData> assign,
         SimpleWindowOptions? options = null)
@@ -64,7 +65,7 @@ public sealed class WindowRunner
 
         await windowTask;
     }
-    
+
     public async Task Show(string title, IImguiDrawer drawer, SimpleWindowOptions? options = null)
     {
         var previousContext = SynchronizationContext.Current;
@@ -73,24 +74,26 @@ public sealed class WindowRunner
             // shift to specified context
             SynchronizationContext.SetSynchronizationContext(MainThreadContext);
         }
-        
+
         CreateWindow(title, options, drawer, _windowProvider);
         while (!IsClosed(drawer))
         {
             await Task.Yield();
         }
-        
+
         SynchronizationContext.SetSynchronizationContext(previousContext);
     }
 
-    private void CreateWindow(string title, SimpleWindowOptions? options, IImguiDrawer drawer, IImguiWindowProvider windowProvider)
+    private void CreateWindow(string title, SimpleWindowOptions? options, IImguiDrawer drawer,
+        IImguiWindowProvider windowProvider)
     {
         var opts = ConstructWindowOptions(options, windowProvider, title);
         var windowImpl = windowProvider.CreateWindow(opts);
-        var windowHelper = new ImGuiWindow(windowImpl, drawer, windowProvider.FontPack, RenderContextLock, opts, options?.SizeFlags ?? windowProvider.DefaultSizeFlags ?? DefaultSizeFlags);
+        var windowHelper = new ImGuiWindow(windowImpl, drawer, windowProvider.FontPack, RenderContextLock, opts,
+            options?.SizeFlags ?? windowProvider.DefaultSizeFlags ?? DefaultSizeFlags);
         _windows.Add(windowHelper);
     }
-    
+
 
     private static WindowSizeFlags DefaultSizeFlags => WindowSizeFlags.ResizeWindow | WindowSizeFlags.ResizeGui;
 
@@ -114,7 +117,8 @@ public sealed class WindowRunner
     };
 
 
-    private static WindowOptions ConstructWindowOptions(in SimpleWindowOptions? options, IImguiWindowProvider provider, string title)
+    private static WindowOptions ConstructWindowOptions(in SimpleWindowOptions? options, IImguiWindowProvider provider,
+        string title)
     {
         var fullOptions = provider.DefaultOptions ?? DefaultOptions;
         if (options.HasValue)
@@ -136,7 +140,7 @@ public sealed class WindowRunner
     }
 
     public void MainThreadUpdate()
-    { 
+    {
         var previousContext = SynchronizationContext.Current;
         var modifiedSyncContext = false;
         if (previousContext != MainThreadContext)
@@ -144,27 +148,33 @@ public sealed class WindowRunner
             SynchronizationContext.SetSynchronizationContext(MainThreadContext);
             modifiedSyncContext = true;
         }
-        
+
         // input events
         var windows = _windows;
-        for (int i = 0; i < windows.Count; i++)
+        foreach (var window in windows)
         {
-            windows[i].Window.DoEvents();
+            if (window is { IsClosed: false})
+            {
+                window.UpdateEvents();
+            }
         }
 
         foreach (var window in windows)
         {
-            window.Window.DoUpdate();
+            if (window is { IsClosed: false})
+            {
+                window.UpdateWindow();
+            }
         }
-        
+
         // check for closed
         for (var index = 0; index < windows.Count; index++)
         {
             var window = windows[index];
             if (window.IsClosed)
             {
-                _windows.RemoveAt(index--);
                 window.Dispose();
+                _windows.RemoveAt(index--);
             }
         }
 
@@ -182,7 +192,7 @@ public sealed class WindowRunner
             {
                 try
                 {
-                    window.Window.DoRender();
+                    window.Render();
                 }
                 catch (Exception e)
                 {
@@ -191,7 +201,7 @@ public sealed class WindowRunner
             }
         }
     }
-    
+
     public void AddToMainThread(Action action) => throw new NotImplementedException();
 
     public void ShowMessageBox(string message) => ShowMessageBox(message, "Notice");

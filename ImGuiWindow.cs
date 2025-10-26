@@ -1,4 +1,7 @@
+using System.Diagnostics;
 using System.Numerics;
+using Silk.NET.Core;
+using Silk.NET.Core.Contexts;
 using Silk.NET.Core.Native;
 using Silk.NET.Input;
 using Silk.NET.Maths;
@@ -7,7 +10,7 @@ using Silk.NET.Windowing;
 
 namespace ImGuiWindows
 {
-    internal sealed class ImGuiWindow
+    internal sealed class ImGuiWindow: IDisposable, IWindow
     {
         private readonly bool _autoScaleImgui;
 
@@ -29,7 +32,7 @@ namespace ImGuiWindows
             _window.Initialize();
         }
         
-        public IWindow Window
+        private IWindow Window
         {
             get
             {
@@ -42,7 +45,6 @@ namespace ImGuiWindows
         {
             ObjectDisposedException.ThrowIf(_isDisposed, this); 
             _window.Run();
-            Dispose();
         }
 
         public void Dispose()
@@ -124,6 +126,7 @@ namespace ImGuiWindows
             }
         }
 
+        [Conditional("DEBUG")]
         private void DebugMouse(string callsite)
         {
             // var mice = _inputContext!.Mice;
@@ -149,10 +152,27 @@ namespace ImGuiWindows
                 _graphicsContextLock, _autoScaleImgui);
         }
 
+        private CloseInfo? _stackTrace;
+
+        private readonly record struct CloseInfo(
+            string StackTrace,
+            ulong UpdateCount,
+            ulong EventUpdateCount,
+            ulong RenderCount);
+
         private void OnClose()
         {
-            _imguiHandler?.Dispose();
+            var stackTrace = new CloseInfo(Environment.StackTrace, _updateCount, _eventUpdateCount, _renderCount);
+            if (IsClosed)
+            {
+                var log = stackTrace == _stackTrace ? $"with same call stack:\n{stackTrace}" : $"with different call stack:\n{_stackTrace}\n\nPrevious callstack:\n{stackTrace}";
+                Console.Error.WriteLine($"{nameof(OnClose)} called twice {log}");
+                return;
+            }
+
+            _stackTrace = stackTrace;
             IsClosed = true;
+            _imguiHandler?.Dispose();
         }
 
         private void OnWindowUpdate(double deltaSeconds)
@@ -168,11 +188,7 @@ namespace ImGuiWindows
             }
         }
 
-        private void OnWindowResize(Vector2D<int> size)
-        {
-            _windowImpl.OnWindowResize(size);
-        }
-        
+        private void OnWindowResize(Vector2D<int> size) => _windowImpl.OnWindowResize(size);
 
         private unsafe float GetWindowScale(IWindow window)
         {
@@ -202,6 +218,7 @@ namespace ImGuiWindows
         private readonly IImguiDrawer _drawer;
         private ImGuiHandler? _imguiHandler;
         private float? _windowScale;
+        private ulong _updateCount, _eventUpdateCount, _renderCount;
         public bool IsClosed { get; private set; }
 
         public IImguiDrawer Drawer => _drawer;
@@ -209,5 +226,270 @@ namespace ImGuiWindows
         public bool Loaded => _imguiHandler != null;
 
         private bool _isDisposed;
+
+        public void UpdateEvents()
+        {
+            Window.DoEvents();
+            ++_eventUpdateCount;
+        }
+
+        public void UpdateWindow()
+        {
+            Window.DoUpdate();
+            ++_updateCount;
+        }
+
+        public void Render()
+        {
+            Window.DoRender();
+            ++_renderCount;
+        }
+
+        #region IWindow
+        bool IViewProperties.ShouldSwapAutomatically
+        {
+            get => _window.ShouldSwapAutomatically;
+            set => _window.ShouldSwapAutomatically = value;
+        }
+
+        bool IViewProperties.IsEventDriven
+        {
+            get => _window.IsEventDriven;
+            set => _window.IsEventDriven = value;
+        }
+
+        bool IViewProperties.IsContextControlDisabled
+        {
+            get => _window.IsContextControlDisabled;
+            set => _window.IsContextControlDisabled = value;
+        }
+
+        bool IWindowProperties.IsVisible
+        {
+            get => _window.IsVisible;
+            set => _window.IsVisible = value;
+        }
+
+        Vector2D<int> IWindowProperties.Position
+        {
+            get => _window.Position;
+            set => _window.Position = value;
+        }
+
+        Vector2D<int> IViewProperties.Size => ((IViewProperties)_window).Size;
+
+        string IWindowProperties.Title
+        {
+            get => _window.Title;
+            set => _window.Title = value;
+        }
+
+        WindowState IWindowProperties.WindowState
+        {
+            get => _window.WindowState;
+            set => _window.WindowState = value;
+        }
+
+        WindowBorder IWindowProperties.WindowBorder
+        {
+            get => _window.WindowBorder;
+            set => _window.WindowBorder = value;
+        }
+
+        bool IWindowProperties.TransparentFramebuffer => _window.TransparentFramebuffer;
+
+        bool IWindowProperties.TopMost
+        {
+            get => _window.TopMost;
+            set => _window.TopMost = value;
+        }
+
+        IGLContext? IWindowProperties.SharedContext => _window.SharedContext;
+
+        string? IWindowProperties.WindowClass => _window.WindowClass;
+
+        Vector2D<int> IWindowProperties.Size
+        {
+            get => _window.Size;
+            set => _window.Size = value;
+        }
+
+        double IViewProperties.FramesPerSecond
+        {
+            get => _window.FramesPerSecond;
+            set => _window.FramesPerSecond = value;
+        }
+
+        double IViewProperties.UpdatesPerSecond
+        {
+            get => _window.UpdatesPerSecond;
+            set => _window.UpdatesPerSecond = value;
+        }
+
+        GraphicsAPI IViewProperties.API => _window.API;
+
+        bool IViewProperties.VSync
+        {
+            get => _window.VSync;
+            set => _window.VSync = value;
+        }
+
+        VideoMode IViewProperties.VideoMode => _window.VideoMode;
+
+        int? IViewProperties.PreferredDepthBufferBits => _window.PreferredDepthBufferBits;
+
+        int? IViewProperties.PreferredStencilBufferBits => _window.PreferredStencilBufferBits;
+
+        Vector4D<int>? IViewProperties.PreferredBitDepth => _window.PreferredBitDepth;
+
+        int? IViewProperties.Samples => _window.Samples;
+
+        IWindow IWindowHost.CreateWindow(WindowOptions opts)
+        {
+            return _window.CreateWindow(opts);
+        }
+
+        IGLContext? IGLContextSource.GLContext => _window.GLContext;
+
+        IVkSurface? IVkSurfaceSource.VkSurface => _window.VkSurface;
+
+        INativeWindow? INativeWindowSource.Native => _window.Native;
+
+        void IView.Initialize()
+        {
+            _window.Initialize();
+        }
+
+        void IView.DoRender()
+        {
+            Render();
+        }
+
+        void IView.DoUpdate()
+        {
+            UpdateWindow();
+        }
+
+        void IView.DoEvents()
+        {
+            UpdateEvents();
+            _window.DoEvents();
+        }
+
+        void IView.ContinueEvents()
+        {
+            if (!IsClosed)
+            {
+                _window.ContinueEvents();
+            }
+        }
+
+        void IView.Reset() => _window.Reset();
+
+        void IView.Focus() => _window.Focus();
+
+        void IView.Close() => _window.Close();
+
+        Vector2D<int> IView.PointToClient(Vector2D<int> point) => _window.PointToClient(point);
+
+        Vector2D<int> IView.PointToScreen(Vector2D<int> point) => _window.PointToScreen(point);
+
+        Vector2D<int> IView.PointToFramebuffer(Vector2D<int> point) => _window.PointToFramebuffer(point);
+
+        object IView.Invoke(Delegate d, params object[] args) => _window.Invoke(d, args);
+
+        void IView.Run(Action onFrame) => _window.Run(onFrame);
+
+        nint IView.Handle => _window.Handle;
+
+        bool IWindow.IsClosing
+        {
+            get => _window.IsClosing;
+            set => _window.IsClosing = value;
+        }
+
+        Rectangle<int> IWindow.BorderSize => _window.BorderSize;
+
+        event Action<Vector2D<int>>? IWindow.Move
+        {
+            add => _window.Move += value;
+            remove => _window.Move -= value;
+        }
+
+        event Action<WindowState>? IWindow.StateChanged
+        {
+            add => _window.StateChanged += value;
+            remove => _window.StateChanged -= value;
+        }
+
+        event Action<string[]>? IWindow.FileDrop
+        {
+            add => _window.FileDrop += value;
+            remove => _window.FileDrop -= value;
+        }
+
+        void IWindow.SetWindowIcon(ReadOnlySpan<RawImage> icons)
+        {
+            _window.SetWindowIcon(icons);
+        }
+
+        IWindowHost? IWindow.Parent => _window.Parent;
+
+        IMonitor? IWindow.Monitor
+        {
+            get => _window.Monitor;
+            set => _window.Monitor = value;
+        }
+
+        bool IView.IsClosing => ((IView)_window).IsClosing;
+
+        double IView.Time => _window.Time;
+
+        Vector2D<int> IView.FramebufferSize => _window.FramebufferSize;
+
+        bool IView.IsInitialized => _window.IsInitialized;
+
+        event Action<Vector2D<int>>? IView.Resize
+        {
+            add => _window.Resize += value;
+            remove => _window.Resize -= value;
+        }
+
+        event Action<Vector2D<int>>? IView.FramebufferResize
+        {
+            add => _window.FramebufferResize += value;
+            remove => _window.FramebufferResize -= value;
+        }
+
+        event Action? IView.Closing
+        {
+            add => _window.Closing += value;
+            remove => _window.Closing -= value;
+        }
+
+        event Action<bool>? IView.FocusChanged
+        {
+            add => _window.FocusChanged += value;
+            remove => _window.FocusChanged -= value;
+        }
+
+        event Action? IView.Load
+        {
+            add => _window.Load += value;
+            remove => _window.Load -= value;
+        }
+
+        event Action<double>? IView.Update
+        {
+            add => _window.Update += value;
+            remove => _window.Update -= value;
+        }
+
+        event Action<double>? IView.Render
+        {
+            add => _window.Render += value;
+            remove => _window.Render -= value;
+        }
+        #endregion
     }
 }
