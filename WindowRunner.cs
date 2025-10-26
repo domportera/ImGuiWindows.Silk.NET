@@ -25,8 +25,8 @@ public sealed class WindowRunner
         MainThreadContext = context;
     }
 
-    internal IReadOnlyList<ImGuiWindow> Windows => _windows;
-    private readonly List<ImGuiWindow> _windows = new();
+    internal IReadOnlyList<IWindow> Windows => _windows;
+    private readonly List<IWindow> _windows = new();
     public SynchronizationContext MainThreadContext { get; }
 
 
@@ -35,13 +35,16 @@ public sealed class WindowRunner
     {
         for (int i = 0; i < _windows.Count; i++)
         {
-            if (_windows[i].Drawer == drawer)
+            if (_windows[i] is ImGuiWindow window && window.Drawer == drawer)
             {
-                return _windows[i].IsClosed;
+                return window.IsClosing;
             }
         }
 
-        throw new Exception("Drawer not found");
+        #if DEBUG
+        Console.Error.WriteLine("Drawer not found");
+        #endif
+        return true;
     }
 
 
@@ -153,25 +156,19 @@ public sealed class WindowRunner
         var windows = _windows;
         foreach (var window in windows)
         {
-            if (window is { IsClosed: false})
-            {
-                window.UpdateEvents();
-            }
+            window.DoEvents();
         }
 
         foreach (var window in windows)
         {
-            if (window is { IsClosed: false})
-            {
-                window.UpdateWindow();
-            }
+            window.DoUpdate();
         }
 
         // check for closed
         for (var index = 0; index < windows.Count; index++)
         {
             var window = windows[index];
-            if (window.IsClosed)
+            if (window.IsClosing)
             {
                 window.Dispose();
                 _windows.RemoveAt(index--);
@@ -188,11 +185,11 @@ public sealed class WindowRunner
     {
         foreach (var window in Windows)
         {
-            if (window.Loaded)
+            if (window.IsVisible)
             {
                 try
                 {
-                    window.Render();
+                    window.DoRender();
                 }
                 catch (Exception e)
                 {

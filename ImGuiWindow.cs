@@ -10,7 +10,7 @@ using Silk.NET.Windowing;
 
 namespace ImGuiWindows
 {
-    internal sealed class ImGuiWindow: IDisposable, IWindow
+    internal sealed class ImGuiWindow: IWindow
     {
         private readonly bool _autoScaleImgui;
 
@@ -163,7 +163,7 @@ namespace ImGuiWindows
         private void OnClose()
         {
             var stackTrace = new CloseInfo(Environment.StackTrace, _updateCount, _eventUpdateCount, _renderCount);
-            if (IsClosed)
+            if (!IsClosing)
             {
                 var log = stackTrace == _stackTrace ? $"with same call stack:\n{stackTrace}" : $"with different call stack:\n{_stackTrace}\n\nPrevious callstack:\n{stackTrace}";
                 Console.Error.WriteLine($"{nameof(OnClose)} called twice {log}");
@@ -171,9 +171,11 @@ namespace ImGuiWindows
             }
 
             _stackTrace = stackTrace;
-            IsClosed = true;
+            _isClosing = true;
             _imguiHandler?.Dispose();
         }
+
+        private bool _isClosing;
 
         private void OnWindowUpdate(double deltaSeconds)
         {
@@ -219,7 +221,6 @@ namespace ImGuiWindows
         private ImGuiHandler? _imguiHandler;
         private float? _windowScale;
         private ulong _updateCount, _eventUpdateCount, _renderCount;
-        public bool IsClosed { get; private set; }
 
         public IImguiDrawer Drawer => _drawer;
 
@@ -227,25 +228,30 @@ namespace ImGuiWindows
 
         private bool _isDisposed;
 
-        public void UpdateEvents()
+        private void UpdateEvents()
         {
             Window.DoEvents();
             ++_eventUpdateCount;
         }
 
-        public void UpdateWindow()
+        private void UpdateWindow()
         {
             Window.DoUpdate();
             ++_updateCount;
         }
 
-        public void Render()
+        private void Render()
         {
             Window.DoRender();
             ++_renderCount;
         }
 
         #region IWindow
+        public bool IsClosing
+        {
+            get => _isClosing || _window.IsClosing;
+            set => _window.IsClosing = value;
+        }
         bool IViewProperties.ShouldSwapAutomatically
         {
             get => _window.ShouldSwapAutomatically;
@@ -378,7 +384,7 @@ namespace ImGuiWindows
 
         void IView.ContinueEvents()
         {
-            if (!IsClosed)
+            if (!IsClosing)
             {
                 _window.ContinueEvents();
             }
@@ -402,11 +408,6 @@ namespace ImGuiWindows
 
         nint IView.Handle => _window.Handle;
 
-        bool IWindow.IsClosing
-        {
-            get => _window.IsClosing;
-            set => _window.IsClosing = value;
-        }
 
         Rectangle<int> IWindow.BorderSize => _window.BorderSize;
 
