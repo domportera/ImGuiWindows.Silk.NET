@@ -15,4 +15,7 @@ namespace ImGuiWindows
 
         public ImFontPtr this[int index] => fonts[index];
     }
+    
+    public record struct FontPack(TtfFont Regular, TtfFont Bold, TtfFont Small, TtfFont Large);
+    public record struct TtfFont(string Path, float PixelSize);
 }

@@ -2,48 +2,57 @@ using System.Numerics;
 using Silk.NET.Core.Native;
 using Silk.NET.Input;
 using Silk.NET.Maths;
+using Silk.NET.SDL;
 using Silk.NET.Windowing;
 
 namespace ImGuiWindows
 {
-    public sealed class WindowHelper
+    internal sealed class ImGuiWindow
     {
-        private readonly Func<IWindow, float> _getWindowScale;
         private readonly bool _autoScaleImgui;
 
-        public WindowHelper(IWindowImplementation window, IImguiDrawer drawer, FontPack? fontPack,
-            object? graphicsContextLockObj, Func<IWindow, float> getWindowScale, WindowSizeFlags windowSizeFlags)
+        // todo: expose runtime-editable options
+        private WindowOptions _windowOptions;
+
+        public ImGuiWindow(IWindowImplementation window, IImguiDrawer drawer, FontPack? fontPack,
+            object graphicsContextLockObj, WindowOptions windowOptions, WindowSizeFlags sizeFlags)
         {
-            _getWindowScale = getWindowScale;
-            _autoScaleImgui = windowSizeFlags.HasFlag(WindowSizeFlags.ResizeGui);
+            _autoScaleImgui = sizeFlags.HasFlag(WindowSizeFlags.ResizeGui);
+            _windowOptions = windowOptions;
             _windowImpl = window;
             _drawer = drawer;
             _fontPack = fontPack;
-            _graphicsContextLock = graphicsContextLockObj ?? new object();
+            _graphicsContextLock = graphicsContextLockObj;
+            
+            _window = Silk.NET.Windowing.Window.Create(windowOptions);
+            SubscribeToWindow(_window);
+            _window.Initialize();
+        }
+        
+        public IWindow Window
+        {
+            get
+            {
+                ObjectDisposedException.ThrowIf(_isDisposed, this); 
+                return _window;
+            }
         }
 
         public void RunUntilClosed()
         {
-            var window = Window.Create(_windowImpl.WindowOptions);
-            _window = window;
-            SubscribeToWindow();
+            ObjectDisposedException.ThrowIf(_isDisposed, this); 
             _window.Run();
-            UnsubscribeFromWindow();
+            Dispose();
+        }
+
+        public void Dispose()
+        {
+            ObjectDisposedException.ThrowIf(_isDisposed, this); 
+            _isDisposed = true;
+            UnsubscribeFromWindow(_window);
             
             try
             {
-                Dispose();
-            }
-            catch(Exception e)
-            {
-                Console.Error.WriteLine($"Error disposing of window: {e}");
-            }
-
-            return;
-
-            void Dispose()
-            {
-
                 _graphicsContext?.Dispose();
                 _inputContext?.Dispose();
                 _window.Dispose();
@@ -52,28 +61,32 @@ namespace ImGuiWindows
                 _graphicsContext = null;
                 _inputContext = null;
             }
-
-            void SubscribeToWindow()
+            catch (Exception e)
             {
-                _window.Load += OnLoad;
-                _window.Render += RenderWindowContents;
-                _window.FramebufferResize += OnWindowResize;
-                _window.Update += OnWindowUpdate;
-                _window.FocusChanged += OnFocusChanged;
-                _window.Closing += OnClose;
-                _window.FileDrop += OnFileDrop;
+                Console.Error.WriteLine($"Error disposing of window: {e}");
             }
+        }
 
-            void UnsubscribeFromWindow()
-            {
-                _window.Load -= OnLoad;
-                _window.Render -= RenderWindowContents;
-                _window.FramebufferResize -= OnWindowResize;
-                _window.Update -= OnWindowUpdate;
-                _window.FocusChanged -= OnFocusChanged;
-                _window.Closing -= OnClose;
-                _window.FileDrop -= OnFileDrop;
-            }
+        private void UnsubscribeFromWindow(IWindow window)
+        {
+            window.Load -= OnLoad;
+            window.Render -= RenderWindowContents;
+            window.FramebufferResize -= OnWindowResize;
+            window.Update -= OnWindowUpdate;
+            window.FocusChanged -= OnFocusChanged;
+            window.Closing -= OnClose;
+            window.FileDrop -= OnFileDrop;
+        }
+
+        private void SubscribeToWindow(IWindow window)
+        {
+            window.Load += OnLoad;
+            window.Render += RenderWindowContents;
+            window.FramebufferResize += OnWindowResize;
+            window.Update += OnWindowUpdate;
+            window.FocusChanged += OnFocusChanged;
+            window.Closing += OnClose;
+            window.FileDrop += OnFileDrop;
         }
 
         private void OnFileDrop(string[] filePaths)
@@ -83,7 +96,7 @@ namespace ImGuiWindows
 
         private void OnFocusChanged(bool isFocused)
         {
-            if (!isFocused && _windowImpl.WindowOptions.TopMost)
+            if (!isFocused && _windowOptions.TopMost)
             {
                 // todo: force re-focus once silk.NET supports that ? wayland may not allow it anyway..
             }
@@ -132,10 +145,6 @@ namespace ImGuiWindows
         private void OnLoad()
         {
             _graphicsContext = _windowImpl.InitializeGraphicsAndInputContexts(_window, out _inputContext);
-
-            if (_drawer == null)
-                return;
-
             _imguiHandler = new ImGuiHandler(_windowImpl.GetImguiImplementation(), _drawer, _fontPack,
                 _graphicsContextLock, _autoScaleImgui);
         }
@@ -143,6 +152,7 @@ namespace ImGuiWindows
         private void OnClose()
         {
             _imguiHandler?.Dispose();
+            IsClosed = true;
         }
 
         private void OnWindowUpdate(double deltaSeconds)
@@ -150,7 +160,7 @@ namespace ImGuiWindows
             DebugMouse("OnWindowUpdate");
             if (_imguiHandler == null) return;
 
-            _windowScale = _getWindowScale(_window);
+            _windowScale = GetWindowScale(_window);
             _imguiHandler.OnWindowUpdate(deltaSeconds, out var shouldCloseWindow);
             if (shouldCloseWindow)
             {
@@ -162,16 +172,42 @@ namespace ImGuiWindows
         {
             _windowImpl.OnWindowResize(size);
         }
+        
+
+        private unsafe float GetWindowScale(IWindow window)
+        {
+            using var sdl = Sdl.GetApi();
+            var sdlWindow = (Silk.NET.SDL.Window*)window.Handle;
+            int displayIndex = sdl.GetWindowDisplayIndex(sdlWindow);
+
+            float ddpi = 0, hdpi = 0, vdpi = 0;
+            if (sdl.GetDisplayDPI(displayIndex, &ddpi, &hdpi, &vdpi) == 0)
+            {
+                // Standard DPI is usually 96
+                return 96f / ddpi;
+            }
+
+            // Fallback if DPI can't be retrieved
+            return 1f;
+        }
+
 
         private readonly object _graphicsContextLock;
         private readonly IWindowImplementation _windowImpl;
-        private IWindow _window = null!;
+        private readonly IWindow _window;
         private IInputContext? _inputContext;
         private NativeAPI? _graphicsContext;
         private readonly FontPack? _fontPack;
 
-        private readonly IImguiDrawer? _drawer;
+        private readonly IImguiDrawer _drawer;
         private ImGuiHandler? _imguiHandler;
         private float? _windowScale;
+        public bool IsClosed { get; private set; }
+
+        public IImguiDrawer Drawer => _drawer;
+
+        public bool Loaded => _imguiHandler != null;
+
+        private bool _isDisposed;
     }
 }

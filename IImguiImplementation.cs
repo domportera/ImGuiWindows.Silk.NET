@@ -52,7 +52,7 @@ namespace ImGuiWindows
         /// </summary>
         IntPtr InitializeControllerContext(Action onConfigureIO);
 
-        public void StartImguiFrame(float deltaSeconds);
+        public bool StartImguiFrame(float deltaSeconds);
         public void EndImguiFrame();
 
         public void Dispose();

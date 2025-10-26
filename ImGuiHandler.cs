@@ -121,29 +121,31 @@ namespace ImGuiWindows
                     }
                 }
 
-                _imguiController.StartImguiFrame((float)deltaTime);
+                if (_imguiController.StartImguiFrame((float)deltaTime))
+                {
+                    ImGui.PushID(_myWindowId);
 
-                ImGui.PushID(_myWindowId);
+                    ImGui.SetNextWindowSize(windowSize);
+                    ImGui.SetNextWindowPos(new Vector2(0, 0));
 
-                ImGui.SetNextWindowSize(windowSize);
-                ImGui.SetNextWindowPos(new Vector2(0, 0));
+                    const ImGuiWindowFlags windowFlags = ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize |
+                                                         ImGuiWindowFlags.NoTitleBar |
+                                                         ImGuiWindowFlags.AlwaysAutoResize;
 
-                const ImGuiWindowFlags windowFlags = ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize |
-                                                     ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.AlwaysAutoResize;
+                    ImGui.Begin(_mainWindowId, windowFlags);
 
-                ImGui.Begin(_mainWindowId, windowFlags);
+                    ImGui.BeginChild(_childWindowId, Vector2.Zero, false);
+                    ImGui.PushID(_windowTitle);
+                    _drawer.OnRender(_windowTitle, deltaTime, _fontObj!, systemWindowScaling);
+                    ImGui.PopID();
+                    ImGui.EndChild();
 
-                ImGui.BeginChild(_childWindowId, Vector2.Zero, false);
-                ImGui.PushID(_windowTitle);
-                _drawer.OnRender(_windowTitle, deltaTime, _fontObj!, systemWindowScaling);
-                ImGui.PopID();
-                ImGui.EndChild();
+                    ImGui.PopID();
 
-                ImGui.PopID();
+                    ImGui.End();
 
-                ImGui.End();
-
-                _imguiController.EndImguiFrame();
+                    _imguiController.EndImguiFrame();
+                }
 
                 if (_autoScaleContent)
                 {

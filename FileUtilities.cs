@@ -60,4 +60,24 @@ public static class FileUtilities
         folderOpener.Start();
         folderOpener.WaitForExit();
     }
+
+    public static bool TryOpenWithDefaultApplication(string path)
+    {
+        Process? process = null;
+        try
+        {
+            process = new Process();
+            process.StartInfo.FileName = path;
+            process.StartInfo.UseShellExecute = true;
+            process.Start();
+            // ReSharper disable once AccessToDisposedClosure
+            process.Exited += (_, _) => process!.Dispose();
+            return true;
+        }
+        catch
+        {
+            process?.Dispose();
+            return false;
+        }
+    }
 }

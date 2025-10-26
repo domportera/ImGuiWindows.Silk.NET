@@ -15,4 +15,16 @@
         <PackageReference Include="Silk.NET.Windowing.Common" Version="2.22.0"/>
     </ItemGroup>
 
+    <ItemGroup>
+      <Reference Include="Silk.NET.Input.Sdl">
+        <HintPath>..\..\..\.nuget\packages\silk.net.input.sdl\2.22.0\lib\net5.0\Silk.NET.Input.Sdl.dll</HintPath>
+      </Reference>
+      <Reference Include="Silk.NET.SDL">
+        <HintPath>..\..\..\.nuget\packages\silk.net.sdl\2.22.0\lib\net6.0\Silk.NET.SDL.dll</HintPath>
+      </Reference>
+      <Reference Include="Silk.NET.Windowing.Sdl">
+        <HintPath>..\..\..\.nuget\packages\silk.net.windowing.sdl\2.22.0\lib\net6.0\Silk.NET.Windowing.Sdl.dll</HintPath>
+      </Reference>
+    </ItemGroup>
+
 </Project>
