@@ -132,7 +132,24 @@ namespace ImGuiWindows
                                                          ImGuiWindowFlags.NoTitleBar |
                                                          ImGuiWindowFlags.AlwaysAutoResize;
 
-                    ImGui.Begin(_mainWindowId, windowFlags);
+                    var currentFlags = windowFlags;
+
+                    Action? mainMenuBarAction = _drawer.MainMenuBarAction;
+                    if (mainMenuBarAction != null)
+                    {
+                        currentFlags |= ImGuiWindowFlags.MenuBar;
+                    }
+                    
+
+                    
+                    ImGui.Begin(_mainWindowId, currentFlags);
+                    
+
+                    if (mainMenuBarAction != null && ImGui.BeginMenuBar())
+                    {
+                        mainMenuBarAction();
+                        ImGui.EndMenuBar();   
+                    }
 
                     ImGui.BeginChild(_childWindowId, Vector2.Zero, false);
                     ImGui.PushID(_windowTitle);

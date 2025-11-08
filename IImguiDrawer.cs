@@ -10,6 +10,7 @@ namespace ImGuiWindows
         public void OnClose();
         public void OnFileDrop(string[] filePaths);
         public void OnWindowFocusChanged(bool changedTo);
+        public Action? MainMenuBarAction => null;
     }
 
     public interface IImguiDrawer<out T> : IImguiDrawer
