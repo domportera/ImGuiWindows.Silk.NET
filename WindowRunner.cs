@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Numerics;
 using Silk.NET.Input.Sdl;
 using Silk.NET.Maths;
@@ -17,6 +19,7 @@ public sealed class WindowRunner
     }
 
     private readonly IImguiWindowProvider _windowProvider;
+    private IWindow? _current;
 
     public WindowRunner(IImguiWindowProvider windowProvider, SynchronizationContext? mainThreadContext = null)
     {
@@ -28,8 +31,7 @@ public sealed class WindowRunner
     internal IReadOnlyList<IWindow> Windows => _windows;
     private readonly List<IWindow> _windows = new();
     public SynchronizationContext MainThreadContext { get; }
-
-
+    
     // todo - runtime font updates while window is running
     private bool IsClosed(IImguiDrawer drawer)
     {
@@ -50,7 +52,7 @@ public sealed class WindowRunner
 
     public async Task<TData?> Show<TData>(string title, IImguiDrawer<TData> drawer, SimpleWindowOptions? options = null)
     {
-        await Show(title, (IImguiDrawer)drawer, options);
+        await Show(title, (IImguiDrawer)drawer, options).ConfigureAwait(false);
         return drawer.Result;
     }
 
@@ -60,41 +62,46 @@ public sealed class WindowRunner
     {
         var windowTask = Show(title, drawer, options);
 
-        await foreach (var result in drawer.GetResults())
+        await foreach (var result in drawer.GetResults().ConfigureAwait(false))
         {
             if (result != null)
                 assign(result);
         }
 
-        await windowTask;
+        await windowTask.ConfigureAwait(false);
     }
 
     public async Task Show(string title, IImguiDrawer drawer, SimpleWindowOptions? options = null)
     {
-        var previousContext = SynchronizationContext.Current;
-        if (previousContext != MainThreadContext)
+        var created = false;
+        
+        Dispatch(() =>
         {
-            // shift to specified context
-            SynchronizationContext.SetSynchronizationContext(MainThreadContext);
-        }
-
-        CreateWindow(title, options, drawer, _windowProvider);
-        while (!IsClosed(drawer))
+            CreateWindow(title, options, drawer, _windowProvider);
+            created = true;
+        });
+        
+        while (!created || !IsClosed(drawer))
         {
             await Task.Yield();
         }
-
-        SynchronizationContext.SetSynchronizationContext(previousContext);
     }
+
+    private void Dispatch(Action action) => _actionQueue.Enqueue(action);
 
     private void CreateWindow(string title, SimpleWindowOptions? options, IImguiDrawer drawer,
         IImguiWindowProvider windowProvider)
     {
         var opts = ConstructWindowOptions(options, windowProvider, title);
-        var windowImpl = windowProvider.CreateWindow(opts);
-        var windowHelper = new ImGuiWindow(windowImpl, drawer, windowProvider.FontPack, RenderContextLock, opts,
+        var parent = _current as ImGuiWindow;
+        var windowImpl = windowProvider.CreateWindow(opts, parent);
+        var windowHelper = new ImGuiWindow(windowImpl, drawer, parent, windowProvider.FontPack, RenderContextLock, opts,
             options?.SizeFlags ?? windowProvider.DefaultSizeFlags ?? DefaultSizeFlags);
-        _windows.Add(windowHelper);
+
+        if (parent is null)
+        {
+            _windows.Add(windowHelper);
+        }
     }
 
 
@@ -152,27 +159,69 @@ public sealed class WindowRunner
             modifiedSyncContext = true;
         }
 
+        ExecuteDispatched();
+
         // input events
         var windows = _windows;
-        foreach (var window in windows)
+        for (var index = windows.Count - 1; index >= 0; index--)
         {
-            window.DoEvents();
+            var window = windows[index];
+            _current = window;
+            try
+            {
+                window.DoEvents();
+            }
+            catch (Exception e)
+            {
+                Console.Error.WriteLine(e);
+            }
+            
+            ExecuteDispatched();
+            _current = null;
         }
 
-        foreach (var window in windows)
+        for (var index = 0; index < windows.Count; index++)
         {
-            window.DoUpdate();
+            var window = windows[index];
+            _current = window;
+            try
+            {
+                window.DoUpdate();
+            }
+            catch (Exception e)
+            {
+                Console.Error.WriteLine(e);
+            }
+            
+            ExecuteDispatched();
+            _current = null;
         }
-
+        
         // check for closed
         for (var index = 0; index < windows.Count; index++)
         {
             var window = windows[index];
             if (window.IsClosing)
             {
-                window.Dispose();
+                _current = window;
+                try
+                {
+                    window.Dispose();
+                }
+                catch (Exception e)
+                {
+                    Console.Error.WriteLine(e);
+                }
+
+                ExecuteDispatched();
+                _current = null;
                 _windows.RemoveAt(index--);
             }
+        }
+
+        if (windows.Count == 0)
+        {
+            ExecuteDispatched();
         }
 
         if (modifiedSyncContext)
@@ -181,25 +230,42 @@ public sealed class WindowRunner
         }
     }
 
-    public void Render()
+    private void ExecuteDispatched()
     {
-        foreach (var window in Windows)
+        while (_actionQueue.TryDequeue(out var action))
         {
-            if (window.IsVisible)
+            try
             {
-                try
-                {
-                    window.DoRender();
-                }
-                catch (Exception e)
-                {
-                    Console.Error.WriteLine(e);
-                }
+                action();
+            }
+            catch (Exception e)
+            {
+                Console.Error.WriteLine(e);
             }
         }
     }
 
-    public void AddToMainThread(Action action) => throw new NotImplementedException();
+    public void Render()
+    {
+        for (var index = _windows.Count - 1; index >= 0; index--)
+        {
+            var window = _windows[index];
+            if (!window.IsVisible) continue;
+            
+            _current = window;
+            try
+            {
+                window.DoRender();
+            }
+            catch (Exception e)
+            {
+                Console.Error.WriteLine(e);
+            }
+            
+            ExecuteDispatched();
+            _current = null;
+        }
+    }
 
     public void ShowMessageBox(string message) => ShowMessageBox(message, "Notice");
     public void ShowMessageBox(string text, string title) => ShowMessageBox<string>(text, title, str => str);
@@ -221,4 +287,6 @@ public sealed class WindowRunner
             Vsync = true
         }).Result;
     }
+    
+    private readonly ConcurrentQueue<Action> _actionQueue = new();
 }

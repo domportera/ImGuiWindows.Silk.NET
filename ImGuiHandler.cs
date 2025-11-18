@@ -13,11 +13,8 @@ namespace ImGuiWindows
         private readonly object _contextLock;
         private readonly FontPack? _fontPack;
         private readonly string _mainWindowId;
-        private readonly string _childWindowId;
         private ImFonts? _fontObj;
         private readonly IntPtr _context;
-        private readonly int _myWindowId;
-        private static int _incrementingWindowId;
         private readonly bool _autoScaleContent;
 
 
@@ -27,13 +24,10 @@ namespace ImGuiWindows
             _autoScaleContent = autoScaleContent;
             _windowTitle = impl.Title;
             _mainWindowId = impl.MainWindowId;
-            _childWindowId = impl.ChildWindowId;
             _drawer = drawer;
             _fontPack = fontPack;
             _contextLock = lockObj ?? new object();
             _imguiController = impl;
-
-            _myWindowId = Interlocked.Increment(ref _incrementingWindowId);
 
             lock (_contextLock)
             {
@@ -46,7 +40,7 @@ namespace ImGuiWindows
 
         private unsafe void InitializeStyle()
         {
-            if (_originalContext.HasValue)
+            if (_originalContext.HasValue && _originalContext != _context)
             {
                 var myContext = ImGui.GetCurrentContext();
 
@@ -110,73 +104,95 @@ namespace ImGuiWindows
                 Span<float> originalFontScales = stackalloc float[5];
                 if (_autoScaleContent)
                 {
-                    var scaleFactor = 1f / systemWindowScaling;
-                    originalStyle.ScaleAllSizes(scaleFactor);
-                    originalFontScales[4] = ImGui.GetFont().Scale;
-                    ImGui.GetFont().Scale *= scaleFactor;
-                    for (int i = 0; i < _fontObj!.Count; i++)
-                    {
-                        originalFontScales[i] = _fontObj[i].Scale;
-                        _fontObj[i].Scale *= scaleFactor;
-                    }
+                    ApplyScaleFactor(systemWindowScaling, originalStyle, originalFontScales);
                 }
 
                 if (_imguiController.StartImguiFrame((float)deltaTime))
                 {
-                    ImGui.PushID(_myWindowId);
-
-                    ImGui.SetNextWindowSize(windowSize);
-                    ImGui.SetNextWindowPos(new Vector2(0, 0));
-
-                    const ImGuiWindowFlags windowFlags = ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize |
-                                                         ImGuiWindowFlags.NoTitleBar |
-                                                         ImGuiWindowFlags.AlwaysAutoResize;
-
-                    var currentFlags = windowFlags;
-
-                    Action? mainMenuBarAction = _drawer.MainMenuBarAction;
-                    if (mainMenuBarAction != null)
-                    {
-                        currentFlags |= ImGuiWindowFlags.MenuBar;
-                    }
-                    
-
-                    
-                    ImGui.Begin(_mainWindowId, currentFlags);
-                    
-
-                    if (mainMenuBarAction != null && ImGui.BeginMenuBar())
-                    {
-                        mainMenuBarAction();
-                        ImGui.EndMenuBar();   
-                    }
-
-                    ImGui.BeginChild(_childWindowId, Vector2.Zero, false);
-                    ImGui.PushID(_windowTitle);
-                    _drawer.OnRender(_windowTitle, deltaTime, _fontObj!, systemWindowScaling);
-                    ImGui.PopID();
-                    ImGui.EndChild();
-
-                    ImGui.PopID();
-
-                    ImGui.End();
-
+                    DrawFrame(windowSize, deltaTime, systemWindowScaling);
                     _imguiController.EndImguiFrame();
                 }
 
                 if (_autoScaleContent)
                 {
-                    originalStyle.ScaleAllSizes(systemWindowScaling);
-                    ImGui.GetFont().Scale = originalFontScales[4];
-                    for (int i = 0; i < _fontObj!.Count; i++)
-                    {
-                        _fontObj[i].Scale = originalFontScales[i];
-                    }
+                    RevertScaleFactor(systemWindowScaling, originalStyle, originalFontScales);
                 }
 
                 // restore
                 ImGui.SetCurrentContext(contextToRestore);
             }
+        }
+
+        private void RevertScaleFactor(float systemWindowScaling, ImGuiStylePtr originalStyle, Span<float> originalFontScales)
+        {
+            originalStyle.ScaleAllSizes(systemWindowScaling);
+            ImGui.GetFont().Scale = originalFontScales[4];
+            for (int i = 0; i < _fontObj!.Count; i++)
+            {
+                _fontObj[i].Scale = originalFontScales[i];
+            }
+        }
+
+        private void ApplyScaleFactor(float systemWindowScaling, ImGuiStylePtr originalStyle, Span<float> originalFontScales)
+        {
+            var scaleFactor = 1f / systemWindowScaling;
+            originalStyle.ScaleAllSizes(scaleFactor);
+            originalFontScales[4] = ImGui.GetFont().Scale;
+            ImGui.GetFont().Scale *= scaleFactor;
+            for (int i = 0; i < _fontObj!.Count; i++)
+            {
+                originalFontScales[i] = _fontObj[i].Scale;
+                _fontObj[i].Scale *= scaleFactor;
+            }
+        }
+
+        private void DrawFrame(Vector2 windowSize, double deltaTime, float systemWindowScaling)
+        {
+            const ImGuiWindowFlags windowFlags = ImGuiWindowFlags.NoMove |
+                                                 ImGuiWindowFlags.NoResize |
+                                                 ImGuiWindowFlags.NoTitleBar |
+                                                 ImGuiWindowFlags.AlwaysAutoResize;
+
+            var mainMenuBarAction = _drawer.MainMenuBarAction;
+
+            var flags = windowFlags;
+            if (mainMenuBarAction != null)
+            {
+                flags |= ImGuiWindowFlags.MenuBar;
+            }
+
+            ImGui.SetNextWindowSize(windowSize);
+            
+            if (ImGui.Begin(_mainWindowId, flags))
+            {
+                if (mainMenuBarAction != null)
+                {
+                    if (ImGui.BeginMenuBar())
+                    {
+                        try
+                        {
+                            mainMenuBarAction();
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error in main menu bar action: {ex.Message}");
+                        }
+
+                        ImGui.EndMenuBar();
+                    }
+                }
+
+                try
+                {
+                    _drawer.OnRender(_windowTitle, deltaTime, _fontObj!, systemWindowScaling);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error rendering {_windowTitle} imgui window: {ex.Message}");
+                }
+            }
+
+            ImGui.End();
         }
 
         public void Dispose()

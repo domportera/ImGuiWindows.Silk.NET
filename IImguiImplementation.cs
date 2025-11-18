@@ -1,6 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
-using Silk.NET.Core.Native;
-using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.Windowing;
 
@@ -17,7 +16,7 @@ namespace ImGuiWindows
         /// </summary>
         /// <param name="window"></param>
         /// <returns></returns>
-        NativeAPI? InitializeGraphicsAndInputContexts(IWindow window, out IInputContext inputContext);
+        void InitializeGraphicsAndInputContexts(IWindow window);
 
         /// <summary>
         /// This is called first in the rendering process - used to clear the frame with a specific color and set up the frame.
@@ -58,7 +57,33 @@ namespace ImGuiWindows
         public void Dispose();
 
         public string MainWindowId => $"{Title}##{Interlocked.Increment(ref _windowCounter)}";
-        public string ChildWindowId => $"{Title}##{Interlocked.Increment(ref _windowCounter)}";
         private static int _windowCounter = 999;
+    }
+    
+
+    public interface ISharedDisposable<T> : IDisposable where T : IDisposable
+    {
+        public T? Context { get; set; }
+
+        [MemberNotNullWhen(true, nameof(Context))]
+        private bool HasExistingContext => UseCount > 0;
+
+        public int UseCount { get; set; }
+
+        public void Use(Func<T> createContext)
+        {
+            if (++UseCount == 1)
+            {
+                Context = createContext();
+            }
+        }
+
+        void IDisposable.Dispose()
+        {
+            if (--UseCount == 0)
+            {
+                Context!.Dispose();
+            }
+        }
     }
 }

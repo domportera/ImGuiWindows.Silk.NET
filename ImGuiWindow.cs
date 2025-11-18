@@ -1,33 +1,43 @@
-using System.Diagnostics;
 using System.Numerics;
 using Silk.NET.Core;
 using Silk.NET.Core.Contexts;
-using Silk.NET.Core.Native;
-using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.SDL;
 using Silk.NET.Windowing;
+using Color = System.Drawing.Color;
 
 namespace ImGuiWindows
 {
-    internal sealed class ImGuiWindow: IWindow
+    public sealed class ImGuiWindow: IWindow, IWindowImplementation
     {
         private readonly bool _autoScaleImgui;
 
         // todo: expose runtime-editable options
         private WindowOptions _windowOptions;
 
-        public ImGuiWindow(IWindowImplementation window, IImguiDrawer drawer, FontPack? fontPack,
+        public ImGuiWindow(IWindowImplementation window, IImguiDrawer drawer, ImGuiWindow? parent, FontPack? fontPack,
             object graphicsContextLockObj, WindowOptions windowOptions, WindowSizeFlags sizeFlags)
         {
+            if (parent is not null)
+            {
+                if (!parent.WindowOptions.IsEventDriven)
+                {
+                    windowOptions.IsEventDriven = false;
+                }
+                
+                parent.ChildWindows.Add(this);
+                ParentWindow = parent;
+            }
+            
             _autoScaleImgui = sizeFlags.HasFlag(WindowSizeFlags.ResizeGui);
             _windowOptions = windowOptions;
-            _windowImpl = window;
+            WindowImpl = window;
             _drawer = drawer;
             _fontPack = fontPack;
             _graphicsContextLock = graphicsContextLockObj;
             
             _window = Silk.NET.Windowing.Window.Create(windowOptions);
+            
             SubscribeToWindow(_window);
             _window.Initialize();
         }
@@ -47,6 +57,16 @@ namespace ImGuiWindows
             _window.Run();
         }
 
+        public bool Render(in Color clearColor, double deltaTime)
+        {
+            return WindowImpl.Render(in clearColor, deltaTime);
+        }
+
+        public void EndRender()
+        {
+            WindowImpl.EndRender();
+        }
+
         public void Dispose()
         {
             ObjectDisposedException.ThrowIf(_isDisposed, this); 
@@ -55,18 +75,23 @@ namespace ImGuiWindows
             
             try
             {
-                _graphicsContext?.Dispose();
-                _inputContext?.Dispose();
                 _window.Dispose();
-
-                _windowImpl.Dispose();
-                _graphicsContext = null;
-                _inputContext = null;
+                WindowImpl.Dispose();
             }
             catch (Exception e)
             {
                 Console.Error.WriteLine($"Error disposing of window: {e}");
             }
+        }
+
+        public IImguiImplementation GetImguiImplementation()
+        {
+            return WindowImpl.GetImguiImplementation();
+        }
+
+        void IWindowImplementation.OnWindowResize(Vector2D<int> size)
+        {
+            WindowImpl.OnWindowResize(size);
         }
 
         private void UnsubscribeFromWindow(IWindow window)
@@ -112,43 +137,23 @@ namespace ImGuiWindows
         Console.WriteLine("Starting render");
 #endif
 
-            DebugMouse("RenderWindowContents");
             lock (_graphicsContextLock)
             {
                 var windowSize = _window.Size;
-                var clearColor = _imguiHandler?.ClearColor ?? _windowImpl.DefaultClearColor;
+                var clearColor = _imguiHandler?.ClearColor ?? WindowImpl.DefaultClearColor;
 
-                if (_windowImpl.Render(clearColor, deltaTime))
+                if (WindowImpl.Render(clearColor, deltaTime))
                 {
                     _imguiHandler?.Draw(new Vector2(windowSize.X, windowSize.Y), deltaTime, _windowScale ?? 1);
-                    _windowImpl.EndRender();
+                    WindowImpl.EndRender();
                 }
             }
         }
 
-        [Conditional("DEBUG")]
-        private void DebugMouse(string callsite)
-        {
-            // var mice = _inputContext!.Mice;
-            // int mCounter = 0;
-            // int wCounter = 0;
-            // foreach(var mouse in mice)
-            // {
-            //     mCounter++;
-            //     foreach (var wheel in mouse.ScrollWheels)
-            //     {
-            //         wCounter++;
-            //         Console.WriteLine($"scroll in mouse {mouse.Name} ({mCounter}, {wCounter}) at {callsite}:" + wheel.Y);
-            //     }
-            //     
-            //     wCounter = 0;
-            // }
-        }
-
         private void OnLoad()
         {
-            _graphicsContext = _windowImpl.InitializeGraphicsAndInputContexts(_window, out _inputContext);
-            _imguiHandler = new ImGuiHandler(_windowImpl.GetImguiImplementation(), _drawer, _fontPack,
+            WindowImpl.InitializeGraphicsAndInputContexts(_window);
+            _imguiHandler = new ImGuiHandler(WindowImpl.GetImguiImplementation(), _drawer, _fontPack,
                 _graphicsContextLock, _autoScaleImgui);
         }
 
@@ -179,7 +184,6 @@ namespace ImGuiWindows
 
         private void OnWindowUpdate(double deltaSeconds)
         {
-            DebugMouse("OnWindowUpdate");
             if (_imguiHandler == null) return;
 
             _windowScale = GetWindowScale(_window);
@@ -190,7 +194,7 @@ namespace ImGuiWindows
             }
         }
 
-        private void OnWindowResize(Vector2D<int> size) => _windowImpl.OnWindowResize(size);
+        private void OnWindowResize(Vector2D<int> size) => WindowImpl.OnWindowResize(size);
 
         private unsafe float GetWindowScale(IWindow window)
         {
@@ -211,10 +215,8 @@ namespace ImGuiWindows
 
 
         private readonly object _graphicsContextLock;
-        private readonly IWindowImplementation _windowImpl;
+        public readonly IWindowImplementation WindowImpl;
         private readonly IWindow _window;
-        private IInputContext? _inputContext;
-        private NativeAPI? _graphicsContext;
         private readonly FontPack? _fontPack;
 
         private readonly IImguiDrawer _drawer;
@@ -232,18 +234,33 @@ namespace ImGuiWindows
         {
             Window.DoEvents();
             ++_eventUpdateCount;
+            
+            foreach (var child in ChildWindows)
+            {
+                (child as IView).DoEvents();
+            }
         }
 
         private void UpdateWindow()
         {
             Window.DoUpdate();
             ++_updateCount;
+            
+            foreach (var child in ChildWindows)
+            {
+                (child as IView).DoUpdate();
+            }
         }
 
         private void Render()
         {
             Window.DoRender();
             ++_renderCount;
+
+            foreach (var child in ChildWindows)
+            {
+                (child as IView).DoRender();
+            }
         }
 
         #region IWindow
@@ -353,6 +370,18 @@ namespace ImGuiWindows
         IWindow IWindowHost.CreateWindow(WindowOptions opts)
         {
             return _window.CreateWindow(opts);
+        }
+
+        public WindowOptions WindowOptions => WindowImpl.WindowOptions;
+
+        public Color DefaultClearColor => WindowImpl.DefaultClearColor;
+
+        private readonly IWindowImplementation? ParentWindow;
+        private readonly List<ImGuiWindow> ChildWindows = new();
+
+        public void InitializeGraphicsAndInputContexts(IWindow window)
+        {
+            WindowImpl.InitializeGraphicsAndInputContexts(window);
         }
 
         IGLContext? IGLContextSource.GLContext => _window.GLContext;

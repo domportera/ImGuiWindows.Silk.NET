@@ -20,7 +20,7 @@ public static class FileUtilities
         if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
         {
             using Process fileOpener = new Process();
-            fileOpener.StartInfo.FileName = "explorer";
+            fileOpener.StartInfo.FileName = "finder";
             fileOpener.StartInfo.Arguments = "-R " + path;
             fileOpener.Start();
             fileOpener.WaitForExit();
