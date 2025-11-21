@@ -162,6 +162,7 @@ namespace ImGuiWindows
             }
 
             ImGui.SetNextWindowSize(windowSize);
+            ImGui.SetNextWindowPos(Vector2.Zero);
             
             if (ImGui.Begin(_mainWindowId, flags))
             {
