@@ -2,14 +2,12 @@ namespace ImGuiWindows
 {
     public abstract class AsyncImguiDrawer<T> : IImguiDrawer<T>
     {
-        private T? _result;
-
         public T? Result
         {
-            get => _result;
+            get;
             protected set
             {
-                _result = value;
+                field = value;
 
                 _resultEvent.Set();
                 _resultEvent.WaitOne();
@@ -48,13 +46,13 @@ namespace ImGuiWindows
 
         public abstract void Init();
 
-        public abstract void OnRender(string windowName, double deltaSeconds, ImFonts fonts, float dpiScale);
-
-        public void OnWindowUpdate(double deltaSeconds, out bool shouldClose)
+        public void Draw(double deltaSeconds, ImFonts fonts, float dpiScale, out bool shouldTerminate)
         {
-            OnWindowUpdateImpl(deltaSeconds);
-            shouldClose = _cts.IsCancellationRequested;
+            OnRenderImpl(deltaSeconds, fonts, dpiScale, out shouldTerminate);
+            shouldTerminate |= _cts.IsCancellationRequested;
         }
+        
+        protected abstract void OnRenderImpl(double deltaSeconds, ImFonts fonts, float dpiScale, out bool shouldTerminate);
 
         public void OnClose()
         {
@@ -69,12 +67,11 @@ namespace ImGuiWindows
             ClosingCallback?.Invoke();
         }
 
-        public abstract void OnFileDrop(string[] filePaths);
+        public abstract void OnFileDrop(IReadOnlyList<string> filePaths);
 
         public abstract void OnWindowFocusChanged(bool changedTo);
 
         private readonly CancellationTokenSource _cts = new();
-        protected abstract void OnWindowUpdateImpl(double deltaSeconds);
 
         public bool CloseOnResult { get; init; } = true;
 

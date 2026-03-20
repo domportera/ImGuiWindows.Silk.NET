@@ -13,7 +13,7 @@ namespace ImGuiWindows
 
         public int Count => fonts.Length;
 
-        public ImFontPtr this[int index] => fonts[index];
+        public ref ImFontPtr this [int index] => ref fonts[index];
     }
     
     public record struct FontPack(TtfFont Regular, TtfFont Bold, TtfFont Small, TtfFont Large);

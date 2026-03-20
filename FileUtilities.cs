@@ -9,7 +9,7 @@ public static class FileUtilities
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            using Process fileOpener = new Process();
+            using var fileOpener = new Process();
             fileOpener.StartInfo.FileName = "explorer";
             fileOpener.StartInfo.Arguments = "/select," + path + "\"";
             fileOpener.Start();
@@ -19,7 +19,7 @@ public static class FileUtilities
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
         {
-            using Process fileOpener = new Process();
+            using var fileOpener = new Process();
             fileOpener.StartInfo.FileName = "finder";
             fileOpener.StartInfo.Arguments = "-R " + path;
             fileOpener.Start();
@@ -29,7 +29,7 @@ public static class FileUtilities
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
-            using Process dbusShowItemsProcess = new Process
+            using var dbusShowItemsProcess = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
@@ -54,7 +54,7 @@ public static class FileUtilities
         }
 
         // fallback
-        using Process folderOpener = new Process();
+        using var folderOpener = new Process();
         folderOpener.StartInfo.FileName = Path.GetDirectoryName(path);
         folderOpener.StartInfo.UseShellExecute = true;
         folderOpener.Start();

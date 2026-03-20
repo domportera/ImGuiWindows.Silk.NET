@@ -3,7 +3,7 @@ using ImGuiNET;
 
 namespace ImGuiWindows;
 
-internal sealed class MessageBox<T> : IImguiDrawer<T>
+public sealed class MessageBox<T> : IImguiDrawer<T>
 {
     private readonly int _startingButtonId;
     private int _framesSinceButtonPress = 0;
@@ -28,7 +28,7 @@ internal sealed class MessageBox<T> : IImguiDrawer<T>
     {
     }
 
-    public void OnRender(string windowName, double deltaSeconds, ImFonts fonts, float dpiScale)
+    public void Draw(double deltaSeconds, ImFonts fonts, float dpiScale, out bool shouldTerminate)
     {
         var contentRegion = ImGui.GetContentRegionAvail();
         var padding = contentRegion.X * 0.1f;
@@ -102,6 +102,9 @@ internal sealed class MessageBox<T> : IImguiDrawer<T>
         ImGui.PopFont();
 
         DrawSpacing(fonts);
+        
+        // framecount is a hack in case of colliding ids - we want our buttons to reset their pressed state
+        shouldTerminate = _result != null && _framesSinceButtonPress > 0;
 
         return;
 
@@ -116,23 +119,17 @@ internal sealed class MessageBox<T> : IImguiDrawer<T>
             else
             {
                 const int spacingAmount = 4;
-                for (int i = 0; i < spacingAmount; i++)
+                for (var i = 0; i < spacingAmount; i++)
                     ImGui.Spacing();
             }
         }
-    }
-
-    public void OnWindowUpdate(double deltaSeconds, out bool shouldClose)
-    {
-        // framecount is a hack in case of colliding ids - we want our buttons to reset their pressed state
-        shouldClose = _result != null && _framesSinceButtonPress > 0;
     }
 
     public void OnClose()
     {
     }
 
-    public void OnFileDrop(string[] filePaths)
+    public void OnFileDrop(IReadOnlyList<string> filePaths)
     {
         // do nothing - drag and drop could be supported by another window!
     }

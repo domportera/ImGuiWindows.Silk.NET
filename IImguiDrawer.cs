@@ -3,12 +3,10 @@ namespace ImGuiWindows
     public interface IImguiDrawer
     {
         public void Init();
-        public void OnRender(string windowName, double deltaSeconds, ImFonts fonts, float dpiScale);
-
-        public void OnWindowUpdate(double deltaSeconds, out bool shouldClose);
+        public void Draw(double deltaSeconds, ImFonts fonts, float dpiScale, out bool shouldTerminate);
 
         public void OnClose();
-        public void OnFileDrop(string[] filePaths);
+        public void OnFileDrop(IReadOnlyList<string> filePaths);
         public void OnWindowFocusChanged(bool changedTo);
         public Action? MainMenuBarAction => null;
     }
