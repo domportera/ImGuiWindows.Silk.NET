@@ -82,7 +82,7 @@ public abstract class SurfaceRenderer
         _drawableHeight = (int)Math.Round(drawableSize.Y);
         
         ImGuiLog.Debug($"[IMGUI] Creating ImGui input context for {title}");;
-        _imguiInputContext = new ImguiInputContext(_inputContext);
+        _imguiInputContext = new ImguiInputContext(_inputContext, null);
         ImGuiLog.Debug($"[IMGUI] Creating ImGui implementation for {title}");;
         _imGuiImplementation = Create(evt);
         ImGuiLog.Debug($"[IMGUI] Creating ImGuiHandler for {title}");;

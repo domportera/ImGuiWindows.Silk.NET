@@ -34,5 +34,7 @@
         <HintPath Condition=" '$(Configuration)' == 'Release' ">bin\Release\net10.0\XenoAtom.Logging.Terminal.dll</HintPath>
       </Reference>
     </ItemGroup>
+    
+    
 
 </Project>

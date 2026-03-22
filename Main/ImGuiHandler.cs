@@ -105,7 +105,7 @@ namespace ImGuiWindows
                 args.SystemWindowScaling, out shouldTerminate);
 
             _contextLock.Enter();
-            EndContext(c);
+            EndContext(c, args);
             _contextLock.Exit();
         }
 
@@ -150,7 +150,7 @@ namespace ImGuiWindows
 
             var io = ImGui.GetIO();
             SetPerFrameImGuiData(io, args);
-            args.ImguiInput.UpdateImGuiInput(io, args.InputContext);
+            args.ImguiInput.BeginImGuiInput(io, args.InputContext);
 
 
             ImGui.NewFrame();
@@ -196,7 +196,7 @@ namespace ImGuiWindows
             }
         }
 
-        private static unsafe void EndContext(in ContextContainer context)
+        private static unsafe void EndContext(in ContextContainer context, in DrawArgs drawArgs)
         {
             ImGui.EndFrame();
 
@@ -207,6 +207,8 @@ namespace ImGuiWindows
                     //     RevertScaleFactor(context.FontObj, context.SystemWindowScaling, context.OriginalStyle, fontScales);
                 }
             }
+            
+            drawArgs.ImguiInput.EndImGuiInput();
 
             if (context.HasContextToRestore)
             {
@@ -288,7 +290,8 @@ namespace ImGuiWindows
             const ImGuiWindowFlags windowFlags = ImGuiWindowFlags.NoMove |
                                                  ImGuiWindowFlags.NoResize |
                                                  ImGuiWindowFlags.NoTitleBar |
-                                                 ImGuiWindowFlags.AlwaysAutoResize;
+                                                 ImGuiWindowFlags.AlwaysAutoResize |
+                                                 ImGuiWindowFlags.NoBringToFrontOnFocus;
 
             var mainMenuBarAction = drawer.MainMenuBarAction;
 
