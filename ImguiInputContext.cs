@@ -42,7 +42,7 @@ internal class ImguiInputContext
 
     public void BeginImGuiInput(ImGuiIOPtr io, InputContext inputContext)
     {
-        // io.ClearEventsQueue();
+        // io.ClearEventsQueue()
         // io.ClearInputKeys();
         // io.ClearInputMouse();
 
@@ -96,19 +96,14 @@ internal class ImguiInputContext
 
     private void OnPointerScroll(MouseScrollEvent obj)
     {
-        ImGuiLog.Debug($"{nameof(MouseScrollEvent)} from {obj.Mouse.Name} changed from {obj.WheelPosition - obj.Delta} to {obj.WheelPosition} via delta {obj.Delta}");
         var delta = obj.Delta * 0.5f;
-        ImGui.GetIO().AddMouseWheelEvent(delta.X, delta.Y);
+        ImGui.GetIO().AddMouseWheelEvent(-delta.X, delta.Y);
     }
 
     private void OnPointerTargetChanged(PointerTargetChangedEvent obj)
     {
         ImGuiLog.Debug(
             $"{nameof(PointerTargetChangedEvent)} from {obj.Pointer} changed from to {obj.Target} with bounds {obj.OldBounds} to new bounds: {obj.NewBounds}");
-    }
-
-    internal static void DrawDebugInput()
-    {
     }
 
     private void OnPointerPointChanged(PointChangedEvent obj)
