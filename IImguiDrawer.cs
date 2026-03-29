@@ -1,3 +1,5 @@
+using ImGuiWindows.DataTypes;
+
 namespace ImGuiWindows
 {
     public interface IImguiDrawer

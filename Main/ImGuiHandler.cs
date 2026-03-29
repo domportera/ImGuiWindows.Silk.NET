@@ -2,22 +2,21 @@ using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using ImGuiNET;
+using ImGuiWindows.Contracts;
+using ImGuiWindows.DataTypes;
 using Silk.NET.Input;
 
 namespace ImGuiWindows
 {
     internal sealed class ImGuiHandler
     {
-        public void RentContext(out nint context)
+        private void RentContext(out nint context)
         {
             _contextLock.Enter();
             context = _context;
         }
 
-        public void ReturnContext()
-        {
-            _contextLock.Exit();
-        }
+        private void ReturnContext() => _contextLock.Exit();
 
         public ImGuiHandler(FontPack? fontPack, Lock? lockObj,
             bool autoScaleContent, string title, Action<ImGuiIOPtr> initFonts)
@@ -84,6 +83,7 @@ namespace ImGuiWindows
                 return;
             }
 
+
             _contextLock.Enter();
             var c = new ContextContainer
             {
@@ -104,8 +104,9 @@ namespace ImGuiWindows
             DrawFrame(drawer, new Vector2(args.Display.DrawableWidth, args.Display.DrawableHeight), args.DeltaSeconds,
                 args.SystemWindowScaling, out shouldTerminate);
 
+            ImGuiLog.PushLogs();
             _contextLock.Enter();
-            EndContext(c, args);
+            EndContext(ref c, args);
             _contextLock.Exit();
         }
 
@@ -149,11 +150,12 @@ namespace ImGuiWindows
             }
 
             var io = ImGui.GetIO();
-            SetPerFrameImGuiData(io, args);
+            SetPerFrameImGuiData(ref io, args);
             args.ImguiInput.BeginImGuiInput(io, args.InputContext);
 
 
             ImGui.NewFrame();
+
             return;
 
             static void ApplyScaleFactor(ImFonts fontObj, float systemWindowScaling, ImGuiStylePtr originalStyle,
@@ -176,7 +178,7 @@ namespace ImGuiWindows
             }
 
             // Sets per-frame data based on the associated window.
-            static void SetPerFrameImGuiData(in ImGuiIOPtr io, in DrawArgs args)
+            static void SetPerFrameImGuiData(ref ImGuiIOPtr io, in DrawArgs args)
             {
                 ref readonly var d = ref args.Display;
 
@@ -196,7 +198,7 @@ namespace ImGuiWindows
             }
         }
 
-        private static unsafe void EndContext(in ContextContainer context, in DrawArgs drawArgs)
+        private static unsafe void EndContext(ref ContextContainer context, in DrawArgs drawArgs)
         {
             ImGui.EndFrame();
 
@@ -207,7 +209,7 @@ namespace ImGuiWindows
                     //     RevertScaleFactor(context.FontObj, context.SystemWindowScaling, context.OriginalStyle, fontScales);
                 }
             }
-            
+
             drawArgs.ImguiInput.EndImGuiInput();
 
             if (context.HasContextToRestore)
@@ -248,7 +250,6 @@ namespace ImGuiWindows
         {
             public nint Context { get; init; }
             public bool HasContextToRestore => ContextToRestore != nint.Zero && Context != ContextToRestore;
-            public ImGuiStylePtr Style;
             public ImFonts? FontObj { get; init; }
             public nint ContextToRestore;
             public bool AutoScaleContent { get; init; }

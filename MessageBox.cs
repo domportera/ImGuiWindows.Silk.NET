@@ -1,5 +1,6 @@
 using System.Numerics;
 using ImGuiNET;
+using ImGuiWindows.DataTypes;
 
 namespace ImGuiWindows;
 

@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using ImGuiWindows.Contracts;
 
 namespace ImGuiWindows;
 
@@ -12,7 +13,7 @@ internal static class DefaultWindowIdHandler
     private static readonly Action<object> OnWindowDisposedDynamicIdAction;
     private static readonly Lock StringIdLock = new();
 
-    private static readonly Dictionary<IDisposed, uint> WindowIds = new();
+    private static readonly Dictionary<ITemporaryObject, uint> WindowIds = new();
     private static readonly Lock IntegerIdLock = new();
     
     /// <summary>
@@ -23,7 +24,7 @@ internal static class DefaultWindowIdHandler
     /// <param name="obj"> The object to whom this ID is assigned</param>
     /// <param name="title"> The title of the window</param>
     /// <param name="windowId">The ID of the window. If null, a new ID will be generated</param>
-    public static ReadOnlySpan<char> GetIdStringFromCache(IDisposed obj, string title, int? windowId)
+    public static ReadOnlySpan<char> GetIdStringFromCache(ITemporaryObject obj, string title, int? windowId)
     {
         var id = GetIdFor(obj, windowId);
 
@@ -45,7 +46,7 @@ internal static class DefaultWindowIdHandler
 
         return idStr;
 
-        static uint GetIdFor(IDisposed obj, int? windowId)
+        static uint GetIdFor(ITemporaryObject obj, int? windowId)
         {
             uint id;
 
@@ -108,9 +109,9 @@ internal static class DefaultWindowIdHandler
 
     private static void OnWindowDisposed(object sender)
     {
-        if (sender is not IDisposed obj)
+        if (sender is not ITemporaryObject obj)
         {
-            throw new ArgumentException($"Window disposal must provide {nameof(IDisposed)}");
+            throw new ArgumentException($"Window disposal must provide {nameof(ITemporaryObject)}");
         }
 
         obj.Disposed -= OnWindowDisposedDynamicIdAction;

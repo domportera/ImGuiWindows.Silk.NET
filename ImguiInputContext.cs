@@ -7,11 +7,12 @@ namespace ImGuiWindows;
 internal class ImguiInputContext
 {
     private readonly List<char> _pressedChars = [];
-    private readonly IPointerTarget _pointerTarget;
-    public ImguiInputContext(InputContext inputContext, IPointerTarget target)
+    private readonly IPointerTarget? _pointerTarget;
+
+    public ImguiInputContext(InputContext inputContext, IPointerTarget? target)
     {
         _pointerTarget = target;
-        
+
         ImGuiLog.Debug("Initializing input context");
         inputContext.ConnectionChanged += OnInputConnectionChanged;
 
@@ -38,12 +39,12 @@ internal class ImguiInputContext
         inputContext.Pointers.TargetChanged += OnPointerTargetChanged;
         inputContext.Pointers.MouseScroll += OnPointerScroll;
     }
-    
+
     public void BeginImGuiInput(ImGuiIOPtr io, InputContext inputContext)
     {
-       // io.ClearEventsQueue();
-       // io.ClearInputKeys();
-       // io.ClearInputMouse();
+        // io.ClearEventsQueue();
+        // io.ClearInputKeys();
+        // io.ClearInputMouse();
 
         _pressedChars.Clear();
         io.KeyCtrl = false;
@@ -54,13 +55,13 @@ internal class ImguiInputContext
         foreach (var kb in inputContext.Keyboards)
         {
             var modifiers = kb.State.Modifiers;
-            io.KeyCtrl |= modifiers.HasAny(KeyModifiers.ControlLeft, KeyModifiers.ControlRight);
-            io.KeyAlt |= modifiers.HasAny(KeyModifiers.AltLeft, KeyModifiers.AltRight);
-            io.KeyShift |= modifiers.HasAny(KeyModifiers.ShiftLeft, KeyModifiers.ShiftRight);
-            io.KeySuper |= modifiers.HasAny(KeyModifiers.SuperLeft, KeyModifiers.SuperRight);
+            // io.KeyCtrl |= (modifiers & (KeyModifiers.ControlLeft | KeyModifiers.ControlRight)) != 0;
+            // io.KeyAlt |= (modifiers & (KeyModifiers.AltLeft | KeyModifiers.AltRight)) != 0;
+            // io.KeyShift |= (modifiers & (KeyModifiers.ShiftLeft | KeyModifiers.ShiftRight)) != 0;
+            // io.KeySuper |= (modifiers & (KeyModifiers.SuperLeft | KeyModifiers.SuperRight)) != 0;
         }
     }
-    
+
     public void EndImGuiInput()
     {
         return;
@@ -70,8 +71,8 @@ internal class ImguiInputContext
         {
             io.MouseClicked[i] = false;
         }
-        
-        for(var i = 0; i < io.MouseDoubleClicked.Count; ++i)
+
+        for (var i = 0; i < io.MouseDoubleClicked.Count; ++i)
         {
             io.MouseDoubleClicked[i] = false;
         }
@@ -95,8 +96,9 @@ internal class ImguiInputContext
 
     private void OnPointerScroll(MouseScrollEvent obj)
     {
-        ImGuiLog.Debug($"{nameof(MouseScrollEvent)} from {obj.Mouse} changed from {obj.WheelPosition - obj.Delta} to {obj.WheelPosition}");
-        ImGui.GetIO().AddMouseWheelEvent(obj.Delta.X, obj.Delta.Y);
+        ImGuiLog.Debug($"{nameof(MouseScrollEvent)} from {obj.Mouse.Name} changed from {obj.WheelPosition - obj.Delta} to {obj.WheelPosition} via delta {obj.Delta}");
+        var delta = obj.Delta * 0.5f;
+        ImGui.GetIO().AddMouseWheelEvent(delta.X, delta.Y);
     }
 
     private void OnPointerTargetChanged(PointerTargetChangedEvent obj)
@@ -107,7 +109,6 @@ internal class ImguiInputContext
 
     internal static void DrawDebugInput()
     {
-        
     }
 
     private void OnPointerPointChanged(PointChangedEvent obj)
@@ -116,7 +117,7 @@ internal class ImguiInputContext
         if (obj.NewPoint is null)
             return;
         var pt = obj.NewPoint.Value;
-        
+
         ImGui.GetIO().AddMousePosEvent(pt.Position.X, pt.Position.Y);
     }
 
@@ -129,7 +130,8 @@ internal class ImguiInputContext
     private void OnPointerDoubleClick(PointerClickEvent obj)
     {
         ImGui.GetIO().MouseDoubleClicked[obj.Button.Index()] = true;
-        ImGuiLog.Debug($"Double-{nameof(PointerClickEvent)} from {obj.Pointer} with button {obj.Button} at {obj.Point}");
+        ImGuiLog.Debug(
+            $"Double-{nameof(PointerClickEvent)} from {obj.Pointer} with button {obj.Button} at {obj.Point}");
     }
 
     private void OnPointerClick(PointerClickEvent obj)
@@ -164,7 +166,8 @@ internal class ImguiInputContext
 
     private void OnGamepadThumbstickMove(GamepadThumbstickMoveEvent obj)
     {
-        ImGuiLog.Debug($"{nameof(GamepadThumbstickMoveEvent)} from {obj.Gamepad} changed from {obj.Value - obj.Delta} to {obj.Value}");
+        ImGuiLog.Debug(
+            $"{nameof(GamepadThumbstickMoveEvent)} from {obj.Gamepad} changed from {obj.Value - obj.Delta} to {obj.Value}");
     }
 
     private void OnKeyChar(KeyCharEvent obj)
@@ -183,79 +186,5 @@ internal class ImguiInputContext
         ImGuiLog.Debug($"{nameof(KeyCharEvent)} {key} from {evt.Keyboard} changed to {key.IsDown}");
         ImGui.GetIO().AddKeyEvent(evt.Key.Name.ToImGuiKey(), evt.Key.IsDown);
         //io.SetKeyEventNativeData(imGuiKey, (int) evt.Key.Namscancode);
-    }
-}
-
-public static class ImGuiDebugging
-{
-    public static void DrawDebugInput(ImGuiIOPtr io)
-    {
-        DrawMouse(io);
-        return;
-
-        static void DrawMouse(ImGuiIOPtr io)
-        {
-            
-            if (ImGui.Begin("Mouse"))
-            {
-                var mousePos = io.MousePos;
-                var mouseWheel = io.MouseWheel;
-                var mouseWheelH = io.MouseWheelH;
-                var mouseDownRange = io.MouseDown;
-                var mouseClickedRange = io.MouseClickedPos;
-                var mouseDoubleClickedRange = io.MouseDoubleClicked;
-                var mouseReleaseRange = io.MouseReleased;
-                
-                ImGui.Text($"Mouse position: {mousePos.X}, {mousePos.Y}");
-                ImGui.Text($"Mouse wheel: {mouseWheel}, {mouseWheelH}");
-                
-                const ImGuiTableFlags flags = ImGuiTableFlags.Borders | ImGuiTableFlags.Resizable | ImGuiTableFlags.SizingFixedFit;
-                if (ImGui.BeginTable("Mouse", 4, flags))
-                {
-                    for (var i = 0; i < mouseDownRange.Count; i++)
-                    {
-                        ImGui.TableNextRow();
-                        ImGui.TableNextColumn();
-                        ImGui.Text($"Mouse {i} {(mouseDownRange[i] ? "down" : "up")}");
-                        ImGui.TableNextColumn();
-                        ImGui.Text($"Mouse {i} clicked: {mouseClickedRange[i]}");
-                        ImGui.TableNextColumn();
-                        ImGui.Text($"Mouse {i} released: {mouseReleaseRange[i]}");;
-                        ImGui.TableNextColumn();
-                        ImGui.Text($"Mouse {i} double clicked: {mouseDoubleClickedRange[i]}");;
-                    }
-                    ImGui.EndTable();
-                }
-            
-                ImGui.End();
-            }
-        }
-    }
-}
-
-public static class EnumExtensions
-{
-    extension<T>(T value) where T : Enum
-    {
-        public bool HasAny(params ReadOnlySpan<T> flags)
-        {
-            var has = false;
-            for (var i = 0; i < flags.Length; i++)
-            {
-                has |= value.HasFlag(flags[i]);
-            }
-        
-            return has;
-        }
-
-        public bool HasAll(params ReadOnlySpan<T> flags)
-        {
-            var has = true;
-            for (var i = 0; i < flags.Length; i++)
-            {
-                has &= value.HasFlag(flags[i]);
-            }
-            return has;
-        }
     }
 }

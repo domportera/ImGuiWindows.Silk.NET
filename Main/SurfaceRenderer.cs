@@ -1,5 +1,7 @@
 using System.Runtime.CompilerServices;
 using ImGuiNET;
+using ImGuiWindows.Contracts;
+using ImGuiWindows.DataTypes;
 using Silk.NET.Input;
 using Silk.NET.Windowing;
 
@@ -26,7 +28,7 @@ public abstract class SurfaceRenderer
             value.Init();
         }
     }
-    
+
     public FontPack? FontPack { private get; init; }
 
     protected SurfaceRenderer()
@@ -49,17 +51,17 @@ public abstract class SurfaceRenderer
     protected abstract void OnTerminate(SurfaceLifecycleEvent evt);
     protected abstract void BeginFrame(SurfaceTimingEvent evt, int frameBufferWidth, int frameBufferHeight);
     protected abstract void OnPause(SurfaceLifecycleEvent evt, bool isPaused);
-    
+
     private void OnSurfacePause(SurfaceLifecycleEvent evt)
     {
         OnPause(evt, true);
     }
-    
+
     private void OnSurfaceResume(SurfaceLifecycleEvent evt)
     {
         OnPause(evt, false);
     }
-    
+
     private void OnSurfaceCreated(SurfaceLifecycleEvent evt)
     {
         var surface = evt.Surface;
@@ -76,45 +78,44 @@ public abstract class SurfaceRenderer
         {
             title = Drawer.GetType().Name;
         }
-
+        
         var drawableSize = surface.DrawableSize;
         _drawableWidth = (int)Math.Round(drawableSize.X);
         _drawableHeight = (int)Math.Round(drawableSize.Y);
-        
-        ImGuiLog.Debug($"[IMGUI] Creating ImGui input context for {title}");;
-        _imguiInputContext = new ImguiInputContext(_inputContext, null);
-        ImGuiLog.Debug($"[IMGUI] Creating ImGui implementation for {title}");;
+
+        ImGuiLog.Debug($"[IMGUI] Creating ImGui implementation for {title}");
         _imGuiImplementation = Create(evt);
-        ImGuiLog.Debug($"[IMGUI] Creating ImGuiHandler for {title}");;
+        ImGuiLog.Debug($"[IMGUI] Creating ImGuiHandler for {title}");
         _imGuiHandler = new ImGuiHandler(FontPack, _contextLock, true, title, _imGuiImplementation.Init);
+        ImGuiLog.Debug($"[IMGUI] Creating ImGui input context for {title}");
+        _imguiInputContext = new ImguiInputContext(_inputContext, null);
     }
-    
+
     private void OnSurfaceUpdate(SurfaceTimingEvent obj)
     {
-        #if DEBUG
-        if(_imguiInputContext is null)
+#if DEBUG
+        if (_imguiInputContext is null)
             throw new InvalidOperationException("Input context is null");
-        
+
         if (_imGuiHandler is null)
             throw new InvalidOperationException("ImGui handler is null");
-        
-        if(_inputContext is null)
+
+        if (_inputContext is null)
             throw new InvalidOperationException("Input context is null");
-        #endif
-        
-        
+#endif
+
+
         _inputContext.Update();
 
         _imGuiHandler.Draw(
-            drawer: Drawer,
             args: new ImGuiHandler.DrawArgs(
                 display: new ImGuiHandler.DisplayInfo(_windowWidth, _windowHeight, _drawableWidth, _drawableHeight),
                 deltaSeconds: obj.DeltaTime,
                 inputContext: _inputContext,
                 imguiInput: _imguiInputContext,
-                systemWindowScaling: obj.Surface.Scale?.PixelDensity ?? _windowWidth / _drawableWidth ?? 1f), 
+                systemWindowScaling: obj.Surface.Scale?.PixelDensity ?? _windowWidth / _drawableWidth ?? 1f),
+            drawer: Drawer,
             shouldTerminate: out var shouldTerminate);
-        
 
         if (shouldTerminate)
         {
@@ -124,14 +125,14 @@ public abstract class SurfaceRenderer
 
     private void Render()
     {
-        #if DEBUG
-        if(_imGuiImplementation is null)
+#if DEBUG
+        if (_imGuiImplementation is null)
             throw new InvalidOperationException("ImGui implementation is null");
-        
-        if(_imGuiHandler is null)
+
+        if (_imGuiHandler is null)
             throw new InvalidOperationException("ImGui handler is null");
-        #endif
-        
+#endif
+
         _imGuiHandler.Render(_imGuiImplementation);
     }
 
@@ -146,7 +147,7 @@ public abstract class SurfaceRenderer
         _drawableWidth = (int)Math.Round(evt.NewSize.X);
         _drawableHeight = (int)Math.Round(evt.NewSize.Y);
     }
-    
+
 
     private void OnLowMemory(SurfaceLifecycleEvent obj)
     {
@@ -166,9 +167,9 @@ public abstract class SurfaceRenderer
         BeginFrame(evt, _drawableWidth, _drawableHeight);
         Render();
     }
-    
+
     private void OnFileDrop(WindowFileEvent obj) => Drawer.OnFileDrop(obj.Files);
-    
+
     private void OnWindowFocusChanged(WindowToggleEvent obj) => Drawer.OnWindowFocusChanged(obj.Value);
 
     private void Subscribe(bool add, Surface surface)
@@ -232,5 +233,4 @@ public abstract class SurfaceRenderer
     private readonly Action<SurfaceLifecycleEvent> _lowMemoryAction;
     private readonly Action<WindowFileEvent> _fileDropAction;
     private readonly Action<WindowToggleEvent> _focusChangedAction;
-    
 }
