@@ -1,6 +1,8 @@
 using System.Drawing;
 using System.Numerics;
 using System.Reflection;
+using System.Text;
+using Common;
 using ImGuiNET;
 using ImGuiWindows.DataTypes;
 
@@ -8,10 +10,20 @@ namespace ImGuiWindows;
 
 public static class ImGuiDebugging
 {
-    public static void DrawDebugInput(ImGuiIOPtr io, ref float renderSize)
+    [ThreadStatic] private static StringBuilder? _sb;
+
+    private static void TextAndClear(StringBuilder sb)
+    {
+        var str = sb.ToDisposableString(true);
+        ImGui.Text(str);
+        str.Dispose();
+    }
+
+    public static void DrawDebugInput(ImGuiIOPtr io, ref float renderSize, ref string textEdit)
     {
         DrawMouse(io);
         DrawKeyboard(io.KeysData.AsSpan(), renderSize);
+        DrawTextEditor(ref textEdit);
         DrawSettings(io, renderSize: ref renderSize);
         ImGui.ShowDebugLogWindow();
         return;
@@ -28,8 +40,12 @@ public static class ImGuiDebugging
                 var mouseDoubleClickedRange = io.MouseDoubleClicked;
                 var mouseReleaseRange = io.MouseReleased;
 
-                ImGui.Text($"Mouse position: {mousePos.X}, {mousePos.Y}");
-                ImGui.Text($"Mouse wheel: {mouseWheel}, {mouseWheelH}");
+                using var mousePosStr = mousePos.ToDisposableString();
+                _sb ??= new StringBuilder();
+                _sb.Append("Mouse position: ").Append(mousePosStr).AppendLine()
+                    .Append("Mouse wheel: (").Append(mouseWheel).Append(", ").Append(mouseWheelH).Append(')');
+
+                TextAndClear(_sb);
 
                 const ImGuiTableFlags flags = ImGuiTableFlags.Borders | ImGuiTableFlags.Resizable |
                                               ImGuiTableFlags.SizingFixedFit;
@@ -39,14 +55,24 @@ public static class ImGuiDebugging
                     {
                         ImGui.TableNextRow();
                         ImGui.TableNextColumn();
-                        ImGui.Text($"Mouse {i} {(mouseDownRange[i] ? "down" : "up")}");
+                        _sb.Append("Mouse ").Append(i).Append(' ').Append(mouseDownRange[i] ? "down" : "up");
+                        TextAndClear(_sb);
+
                         ImGui.TableNextColumn();
-                        ImGui.Text($"Mouse {i} clicked: {mouseClickedRange[i]}");
+                        var rangeStr = mouseClickedRange[i].ToDisposableString();
+                        _sb.Append("Mouse ").Append(i).Append(" clicked: ").Append(rangeStr);
+                        rangeStr.Dispose();
+                        TextAndClear(_sb);
+
                         ImGui.TableNextColumn();
-                        ImGui.Text($"Mouse {i} released: {mouseReleaseRange[i]}");
+                        _sb.Append("Mouse ").Append(i).Append(" released: ").Append(mouseReleaseRange[i]);
+                        TextAndClear(_sb);
+
                         ImGui.TableNextColumn();
-                        ImGui.Text($"Mouse {i} double clicked: {mouseDoubleClickedRange[i]}");
+                        _sb.Append("Mouse ").Append(i).Append(" double clicked: ").Append(mouseDoubleClickedRange[i]);
+                        TextAndClear(_sb);
                     }
+
 
                     ImGui.EndTable();
                 }
@@ -54,122 +80,67 @@ public static class ImGuiDebugging
 
             ImGui.End();
         }
+    }
 
-        static void DrawKeyboard(Span<ImGuiKeyData> allKeyData, float renderSize)
+    private static void DrawKeyboard(Span<ImGuiKeyData> allKeyData, float renderSize)
+    {
+        if (ImGui.Begin("Keyboard"))
         {
-            if (ImGui.Begin("Keyboard"))
+            const float rectSize = 64f;
+            var cellSize = new Vector2(rectSize, rectSize) * renderSize;
+
+            var grid = GridState.Begin("KeyboardGrid", cellSize, columns: 20);
+
+            DrawKeys(ref grid, ImGuiKey.Tab, ImGuiKey.Menu, allKeyData);
+            grid.NextRow();
+
+            DrawKeys(ref grid, ImGuiKey.A, ImGuiKey.Z, allKeyData);
+            grid.NextRow();
+
+            DrawKeys(ref grid, ImGuiKey.A, ImGuiKey.Z, allKeyData);
+            grid.NextRow();
+
+            DrawKeys(ref grid, ImGuiKey.F1, ImGuiKey.F24, allKeyData);
+            grid.NextRow();
+
+            DrawKeys(ref grid, ImGuiKey.Apostrophe, ImGuiKey.AppForward, allKeyData);
+            grid.NextRow();
+
+            DrawKeys(ref grid, ImGuiKey.GamepadStart, ImGuiKey.ReservedForModSuper, allKeyData);
+            grid.Dispose();
+        }
+
+        ImGui.End();
+        return;
+
+        static void DrawKeys(ref GridState gridState, ImGuiKey start, ImGuiKey end, Span<ImGuiKeyData> allKeyData)
+        {
+            for (var key = start; key <= end; key++)
             {
-                var origin = ImGui.GetCursorPos();
-                var originalOrigin = origin;
-                const float rectSize = 64f;
-                var size = new Vector2(rectSize, rectSize) * renderSize;
-
-                for (var key = ImGuiKey.Tab; key <= ImGuiKey.Menu; key++)
-                {
-                    var index = key - ImGuiKey.NamedKey_BEGIN;
-                    ref readonly var keyData = ref allKeyData[index];
-                    DrawKey(key, origin, size, keyData.Down > 0);
-                    AdvanceGrid(ref origin, size, originalOrigin);
-                }
-
-                NextRow(ref origin, size, originalOrigin, 2);
-
-                for (var key = ImGuiKey._0; key <= ImGuiKey._9; key++)
-                {
-                    var index = key - ImGuiKey.NamedKey_BEGIN;
-                    ref readonly var keyData = ref allKeyData[index];
-                    DrawKey(key, origin, size, keyData.Down > 0);
-                    AdvanceGrid(ref origin, size, originalOrigin);
-                }
-
-                NextRow(ref origin, size, originalOrigin, 2);
-
-                for (var key = ImGuiKey.A; key <= ImGuiKey.Z; key++)
-                {
-                    var index = key - ImGuiKey.NamedKey_BEGIN;
-                    ref readonly var keyData = ref allKeyData[index];
-                    DrawKey(key, origin, size, keyData.Down > 0);
-                    AdvanceGrid(ref origin, size, originalOrigin);
-                }
-
-                NextRow(ref origin, size, originalOrigin, 2);
-
-                for (var key = ImGuiKey.F1; key <= ImGuiKey.F24; key++)
-                {
-                    var index = key - ImGuiKey.NamedKey_BEGIN;
-                    ref readonly var keyData = ref allKeyData[index];
-                    DrawKey(key, origin, size, keyData.Down > 0);
-                    AdvanceGrid(ref origin, size, originalOrigin);
-                }
-
-                NextRow(ref origin, size, originalOrigin, 2);
-
-                for (var key = ImGuiKey.Apostrophe; key <= ImGuiKey.AppForward; key++)
-                {
-                    var index = key - ImGuiKey.NamedKey_BEGIN;
-                    ref readonly var keyData = ref allKeyData[index];
-                    DrawKey(key, origin, size, keyData.Down > 0);
-                    AdvanceGrid(ref origin, size, originalOrigin);
-                }
-
-                NextRow(ref origin, size, originalOrigin, 2);
-
-                for (var key = ImGuiKey.GamepadStart; key < ImGuiKey.NamedKey_END; key++)
-                {
-                    var index = key - ImGuiKey.NamedKey_BEGIN;
-                    ref readonly var keyData = ref allKeyData[index];
-                    DrawKey(key, origin, size, keyData.Down > 0);
-                    AdvanceGrid(ref origin, size, originalOrigin);
-                }
-            }
-
-            ImGui.End();
-            return;
-
-            static void NextRow(ref Vector2 origin, Vector2 size, Vector2 originalOrigin, int count = 1)
-            {
-                origin.X = originalOrigin.X;
-                origin.Y += size.Y * count;
-            }
-
-            static void AdvanceGrid(ref Vector2 origin, Vector2 size, Vector2 originalOrigin)
-            {
-                var available = new Vector2(ImGui.GetWindowWidth(), ImGui.GetWindowHeight()) - originalOrigin;
-                origin.X += size.X;
-                if (origin.X > available.X - size.X)
-                {
-                    origin.X = originalOrigin.X;
-                    origin.Y += size.Y;
-                }
-            }
-
-            static void DrawKey(ImGuiKey key, Vector2 min, Vector2 size, bool isDown)
-            {
-                var keyName = key.PrettyName;
-
-                ImGui.SetCursorPos(min);
-                using var style = StyleScope.Begin();
-                if (isDown)
-                {
-                    style.Push(ImGuiCol.ChildBg, Color.Pink);
-                }
-
-                if (ImGui.BeginChild(keyName, size: size,
-                        child_flags: ImGuiChildFlags.Borders,
-                        window_flags: ImGuiWindowFlags.NoDecoration |
-                                      ImGuiWindowFlags.NoFocusOnAppearing))
-                {
-                    ImGui.TextWrapped(keyName);
-                }
-
-                ImGui.EndChild();
+                var index = key - ImGuiKey.NamedKey_BEGIN;
+                ref readonly var keyData = ref allKeyData[index];
+                var cell = gridState.NextCell();
+                DimGui.DrawTextBox(key.PrettyName, cell.Min, cell.Size, keyData.Down > 0);
             }
         }
     }
 
+    private static void DrawTextEditor(ref string textEdit)
+    {
+        if (ImGui.Begin("Text Editor"))
+        {
+            var wantsText = ImGui.GetIO().WantTextInput;
+            ImGui.Checkbox("wants text", ref wantsText);
+            ImGui.InputTextMultiline(label: "Text entry test", input: ref textEdit, maxLength: int.MaxValue,
+                Vector2.Zero, ImGuiInputTextFlags.AllowTabInput);
+        }
+
+        ImGui.End();
+    }
+
     private static void DrawSettings(ImGuiIOPtr io, ref float renderSize)
     {
-        object ioBox = io;
+        _sb ??= new StringBuilder();
         if (ImGui.Begin("Settings"))
         {
             ImGui.DragFloat(label: "Render size", v: ref renderSize, v_speed: 0.1f, v_min: 0.1f, v_max: 1f);
@@ -191,8 +162,10 @@ public static class ImGuiDebugging
 
 
                 ImGui.TableNextRow();
-                foreach (var c in ConfigRefAccessors)
+                object ioBox = io;
+                for (var index = 0; index < ConfigRefAccessors.Count; index++)
                 {
+                    var c = ConfigRefAccessors[index];
                     var returnType = c.ReturnType;
                     using (var style = StyleScope.Begin())
                     {
@@ -221,12 +194,20 @@ public static class ImGuiDebugging
                             style.Push(ImGuiCol.Text, Color.Green);
                         }
 
-                        var returnParameter = c.ReturnParameter;
 
-                        ImGui.Text(returnType.ToString());
+                        var nameText = returnType.FullName ?? returnType.ToString();
+                        ImGui.Text(nameText);
 
                         ImGui.TableNextColumn();
-                        ImGui.Text(returnParameter.ToString());
+                        // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+                        if (c.ReturnParameter is not null)
+                        {
+                            var returnParamType = c.ReturnParameter.ParameterType;
+                            var paramNameText = returnParamType.FullName ??
+                                                // ReSharper disable once NullCoalescingConditionIsAlwaysNotNullAccordingToAPIContract
+                                                returnParamType.Name ?? returnParamType.ToString();
+                            ImGui.Text(paramNameText);
+                        }
                     }
 
                     ImGui.TableNextColumn();
@@ -238,13 +219,15 @@ public static class ImGuiDebugging
                         try
                         {
                             var o = c.Invoke(ioBox, null);
-                            ImGui.Text(
-                                $"{c.Name} {o?.GetType().ToString() ?? "(no type for null)"} | {(o == null ? "<null>" : o.ToString())}");
+                            _sb.Append(c.Name).Append(' ').Append(o?.GetType() as object ?? "(no type for null)")
+                                .Append(" | ").Append(o ?? "<null>");
+                            TextAndClear(_sb);
                         }
                         catch (Exception e)
                         {
                             style.Push(ImGuiCol.Text, new Vector4(1f, 0f, 0f, 1f));
-                            ImGui.Text($"{c.Name}: EXCEPTION - {e.Message}");
+                            _sb.Append(c.Name).Append(": EXCEPTION - ").Append(e.Message);
+                            TextAndClear(_sb);
                         }
                     }
                 }
@@ -265,7 +248,7 @@ public static class ImGuiDebugging
             var accessors = p.GetAccessors(nonPublic: false);
             foreach (var a in accessors)
             {
-                if (a.GetParameters().Length == 0 && a.ReturnType.IsByRef || a.ReturnType.IsByRefLike)
+                if (a.GetParameters().Length == 0 && (a.ReturnType.IsByRef || a.ReturnType.IsByRefLike))
                 {
                     allAccessors.Add(a);
                 }
@@ -276,18 +259,4 @@ public static class ImGuiDebugging
     }
 
     private static readonly IReadOnlyList<MethodInfo> ConfigRefAccessors;
-}
-
-public static class ImGuiExtensions
-{
-    extension<T>(RangeAccessor<T> accessor) where T : struct
-    {
-        public Span<T> AsSpan()
-        {
-            unsafe
-            {
-                return new Span<T>(accessor.Data, accessor.Count);
-            }
-        }
-    }
 }

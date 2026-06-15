@@ -48,7 +48,7 @@ namespace ImGuiWindows
 
         public abstract void Init();
 
-        public void Draw(double deltaSeconds, ImFonts fonts, float dpiScale, out bool shouldTerminate)
+        public void Draw(double deltaSeconds, ImFonts fonts, float dpiScale, ImguiInputContext ctx, out bool shouldTerminate)
         {
             OnRenderImpl(deltaSeconds, fonts, dpiScale, out shouldTerminate);
             shouldTerminate |= _cts.IsCancellationRequested;

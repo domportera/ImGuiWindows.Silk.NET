@@ -4,14 +4,15 @@ using Silk.NET.Input;
 namespace ImGuiWindows;
 
 // todo - manage multiple imgui contexts - these events probably also need to be re-queued here and applied in BeginImGuiInput
-internal class ImguiInputContext
+public class ImguiInputContext
 {
-    private readonly List<char> _pressedChars = [];
+    public readonly InputContext InputContext;
     private readonly IPointerTarget? _pointerTarget;
 
     public ImguiInputContext(InputContext inputContext, IPointerTarget? target)
     {
         _pointerTarget = target;
+        InputContext = inputContext;
 
         ImGuiLog.Debug("Initializing input context");
         inputContext.ConnectionChanged += OnInputConnectionChanged;
@@ -40,20 +41,38 @@ internal class ImguiInputContext
         inputContext.Pointers.MouseScroll += OnPointerScroll;
     }
 
-    public void BeginImGuiInput(ImGuiIOPtr io, InputContext inputContext)
+    private bool _textEntryActive = false;
+
+    public void BeginImGuiInput(ImGuiIOPtr io)
     {
         // io.ClearEventsQueue()
-        // io.ClearInputKeys();
+         //io.ClearInputKeys();
+         if (io.WantTextInput && !_textEntryActive)
+         {
+             _textEntryActive = true;
+             for (var index = InputContext.Keyboards.Count - 1; index >= 0; index--)
+             {
+                 InputContext.Keyboards[index].BeginInput();
+             }
+         }
+         else if (!io.WantTextInput && _textEntryActive)
+         {
+             _textEntryActive = false;
+             for (var index = InputContext.Keyboards.Count - 1; index >= 0; index--)
+             {
+                 InputContext.Keyboards[index].EndInput();
+             }
+         }
         // io.ClearInputMouse();
 
-        _pressedChars.Clear();
         io.KeyCtrl = false;
         io.KeyAlt = false;
         io.KeyShift = false;
         io.KeySuper = false;
 
-        foreach (var kb in inputContext.Keyboards)
+        for (var index = InputContext.Keyboards.Count - 1; index >= 0; index--)
         {
+            var kb = InputContext.Keyboards[index];
             var modifiers = kb.State.Modifiers;
             // io.KeyCtrl |= (modifiers & (KeyModifiers.ControlLeft | KeyModifiers.ControlRight)) != 0;
             // io.KeyAlt |= (modifiers & (KeyModifiers.AltLeft | KeyModifiers.AltRight)) != 0;
@@ -171,14 +190,14 @@ internal class ImguiInputContext
         if (obj.Character is not null)
         {
             ImGui.GetIO().AddInputCharacter(obj.Character.Value);
-            _pressedChars.Add(obj.Character.Value);
         }
     }
 
     private void OnKeyChanged(KeyChangedEvent evt)
     {
         var key = evt.Key;
-        ImGuiLog.Debug($"{nameof(KeyCharEvent)} {key} from {evt.Keyboard} changed to {key.IsDown}");
+        // ImGuiLog.Debug($"{nameof(KeyChangedEvent)} {key} from {evt.Keyboard} changed to {key.IsDown}");
+        
         ImGui.GetIO().AddKeyEvent(evt.Key.Name.ToImGuiKey(), evt.Key.IsDown);
         //io.SetKeyEventNativeData(imGuiKey, (int) evt.Key.Namscancode);
     }

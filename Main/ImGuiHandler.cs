@@ -19,11 +19,12 @@ namespace ImGuiWindows
         private void ReturnContext() => _contextLock.Exit();
 
         public ImGuiHandler(FontPack? fontPack, Lock? lockObj,
-            bool autoScaleContent, string title, Action<ImGuiIOPtr> initFonts)
+            bool autoScaleContent, string title, Action<ImGuiIOPtr> initFonts, ImguiInputContext imguiInputContext)
         {
             _mainWindowId = title;
             _autoScaleContent = autoScaleContent;
             _contextLock = lockObj ?? new Lock();
+            _imguiInputContext = imguiInputContext;
 
 
             _context = ImGui.CreateContext();
@@ -151,7 +152,7 @@ namespace ImGuiWindows
 
             var io = ImGui.GetIO();
             SetPerFrameImGuiData(ref io, args);
-            args.ImguiInput.BeginImGuiInput(io, args.InputContext);
+            args.ImguiInput.BeginImGuiInput(io);
 
 
             ImGui.NewFrame();
@@ -327,7 +328,7 @@ namespace ImGuiWindows
 
                 try
                 {
-                    drawer.Draw(deltaTime, _fontObj!, systemWindowScaling, out shouldTerminate);
+                    drawer.Draw(deltaTime, _fontObj!, systemWindowScaling, _imguiInputContext, out shouldTerminate);
                 }
                 catch (Exception ex)
                 {
@@ -390,6 +391,7 @@ namespace ImGuiWindows
             ImGuiLog.Warn("Low memory detected");
         }
 
+        private readonly ImguiInputContext _imguiInputContext;
         private readonly string _mainWindowId;
         private readonly Lock _contextLock;
         private readonly ImFonts? _fontObj;

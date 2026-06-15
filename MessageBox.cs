@@ -29,7 +29,7 @@ public sealed class MessageBox<T> : IImguiDrawer<T>
     {
     }
 
-    public void Draw(double deltaSeconds, ImFonts fonts, float dpiScale, out bool shouldTerminate)
+    public void Draw(double deltaSeconds, ImFonts fonts, float dpiScale, ImguiInputContext ctx, out bool shouldTerminate)
     {
         var contentRegion = ImGui.GetContentRegionAvail();
         var padding = contentRegion.X * 0.1f;

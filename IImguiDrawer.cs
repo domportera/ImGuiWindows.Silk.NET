@@ -5,7 +5,7 @@ namespace ImGuiWindows
     public interface IImguiDrawer
     {
         public void Init();
-        public void Draw(double deltaSeconds, ImFonts fonts, float dpiScale, out bool shouldTerminate);
+        public void Draw(double deltaSeconds, ImFonts fonts, float dpiScale, ImguiInputContext inputContext, out bool shouldTerminate);
 
         public void OnClose();
         public void OnFileDrop(IReadOnlyList<string> filePaths);

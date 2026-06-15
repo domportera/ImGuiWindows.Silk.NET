@@ -4,7 +4,10 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Text;
+using Common;
 using ImGuiNET;
+using JetBrains.Annotations;
 using XenoAtom.Logging;
 using XenoAtom.Logging.Writers;
 
@@ -17,6 +20,7 @@ public static class ImGuiLog
     private const string MemberProp = "member";
     private const string PathProp = "path";
     private const string LineProp = "line";
+    [ThreadStatic] private static StringBuilder? _sb;
 
     static ImGuiLog()
     {
@@ -61,9 +65,22 @@ public static class ImGuiLog
     {
         const string traceFmt = "{0} (at {1}:{2})";
         props = GetProperties(path, line, member);
-        return stackTrace
-            ? $"{message} ({string.Format(traceFmt, member, path, line)}){Environment.NewLine}{new StackTrace()}"
-            : $"{message} ({string.Format(traceFmt, member, path, line)})";
+        _sb ??= new();
+        var value = stackTrace
+            ? _sb.Append(message)
+                .Append(" (")
+                .AppendFormat(traceFmt, member, path, line)
+                .AppendLine(")")
+                .Append(new StackTrace())
+                .AppendLine()
+                .ToString()
+            : _sb.Append(message)
+                .Append(" (")
+                .AppendFormat(traceFmt, member, path, line)
+                .AppendLine(")")
+                .ToString();
+        _sb.Clear();
+        return value;
     }
 
     [StackTraceHidden, DebuggerHidden]
@@ -103,7 +120,10 @@ public static class ImGuiLog
     [StackTraceHidden, MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void LogToImgui(string log)
     {
-        BufferedLogs.Enqueue(log);
+        lock (BufferedLogs)
+        {
+            BufferedLogs.Enqueue(log);
+        }
     }
 
     [StackTraceHidden, DebuggerHidden]
@@ -126,7 +146,8 @@ public static class ImGuiLog
         [CallerLineNumber] int line = 0,
         [CallerMemberName] string? member = null)
     {
-        var msg = $"Object not disposed properly. {message}";
+        _sb ??= new StringBuilder();
+        var msg = _sb.Append("Object not disposed properly. ").Append(message).ToString();
         Logger.Warn(msg, GetProperties(path, line, member));
         LogToImgui(msg);
     }
@@ -135,20 +156,21 @@ public static class ImGuiLog
     {
         if (ImGui.GetCurrentContext() == nint.Zero)
         {
-            Error("ImGui context is null");
-            BufferedLogs.Clear();
-            return;
+            throw new InvalidOperationException("ImGui context is null");
         }
-        
+
 
         ReadOnlySpan<char> newLine = ['\n'];
-        
-        while (BufferedLogs.TryDequeue(out var old))
+
+        lock (BufferedLogs)
         {
-            ImGui.DebugLog(old);
-            ImGui.DebugLog(newLine);
+            while (BufferedLogs.TryDequeue(out var old))
+            {
+                ImGui.DebugLog(old);
+                ImGui.DebugLog(newLine);
+            }
         }
     }
 
-    private static readonly ConcurrentQueue<string> BufferedLogs = new();
+    private static readonly Queue<string> BufferedLogs = new();
 }

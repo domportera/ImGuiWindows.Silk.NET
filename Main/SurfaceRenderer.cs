@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using ImGuiNET;
 using ImGuiWindows.Contracts;
 using ImGuiWindows.DataTypes;
 using Silk.NET.Input;
@@ -78,17 +77,20 @@ public abstract class SurfaceRenderer
         {
             title = Drawer.GetType().Name;
         }
-        
+
         var drawableSize = surface.DrawableSize;
         _drawableWidth = (int)Math.Round(drawableSize.X);
         _drawableHeight = (int)Math.Round(drawableSize.Y);
 
         ImGuiLog.Debug($"[IMGUI] Creating ImGui implementation for {title}");
         _imGuiImplementation = Create(evt);
-        ImGuiLog.Debug($"[IMGUI] Creating ImGuiHandler for {title}");
-        _imGuiHandler = new ImGuiHandler(FontPack, _contextLock, true, title, _imGuiImplementation.Init);
+
         ImGuiLog.Debug($"[IMGUI] Creating ImGui input context for {title}");
         _imguiInputContext = new ImguiInputContext(_inputContext, null);
+
+        ImGuiLog.Debug($"[IMGUI] Creating ImGuiHandler for {title}");
+        _imGuiHandler = new ImGuiHandler(FontPack, _contextLock, true, title, _imGuiImplementation.Init,
+            _imguiInputContext);
     }
 
     private void OnSurfaceUpdate(SurfaceTimingEvent obj)
