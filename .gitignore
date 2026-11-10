@@ -1,2 +1,34 @@
-/bin
-/obj
+# Build output
+bin/
+obj/
+artifacts/
+publish/
+
+# Test output
+[Tt]est[Rr]esults/
+*.trx
+*.coverage
+*.coveragexml
+coverage*.json
+coverage*.xml
+coverage*.info
+
+# IDE and tooling state
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.DotSettings.user
+*.received.*
+.fleet/
+
+# Operating system noise
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+

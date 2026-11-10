@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using ImGuiNET;
 using ImGuiWindows.DataTypes;
 using Silk.NET.Input;
@@ -17,6 +18,43 @@ public static class DimGui
             {
                 return new Span<T>(accessor.Data, accessor.Count);
             }
+        }
+    }
+
+    /// <param name="value"></param>
+    /// <typeparam name="T"></typeparam>
+    extension<T>(T value) where T : unmanaged
+    {
+        /// <summary>
+        /// Compares two values of the same type for equality.
+        /// </summary>
+        /// <remarks>
+        /// This will only be faster than <see cref="EqualsUnsafe"/> if you are providing a large struct.
+        /// This method does not require hardware support for vectorization, and thus will likely be slower
+        /// than vectorized methods for large types.
+        /// </remarks>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public unsafe bool EqualsUnsafe(in T other)
+        {
+            var left = (byte*)&value;
+            var right = (byte*)Unsafe.AsPointer(in other);
+            var length = sizeof(T);
+            var index = 0;
+            ulong diff = 0;
+
+            var maxSimdIndex = length & ~(sizeof(ulong) - 1); // equivalent to length - (length % sizeof(ulong))
+            for (; index < maxSimdIndex; index += sizeof(ulong))
+            {
+                diff |= Unsafe.ReadUnaligned<ulong>(left + index) ^ Unsafe.ReadUnaligned<ulong>(right + index);
+            }
+
+            // remaining bytes
+            for (; index < length; ++index)
+            {
+                diff |= (byte)(left[index] ^ right[index]);
+            }
+
+            return diff == 0;
         }
     }
 
@@ -47,6 +85,8 @@ public static class DimGui
     /// </summary>
     /// <param name="label"></param>
     /// <param name="buttons"></param>
+    /// <param name="thumbSticks"></param>
+    /// <param name="triggers"></param>
     public static void DrawController(ReadOnlySpan<char> label, IReadOnlyList<Button<JoystickButton>> buttons,
         DualReadOnlyList<Vector2> thumbSticks, DualReadOnlyList<float> triggers)
     {
@@ -73,7 +113,7 @@ public static class DimGui
                     ImGui.BeginDisabled();
                 }
 
-                if (!_buttonDrawPositions01.TryGetValue(b.Name, out var info))
+                if (!ButtonDrawPositions01.TryGetValue(b.Name, out var info))
                 {
                     unknown.Add((b.Name, b.IsDown));
                 }
@@ -95,8 +135,8 @@ public static class DimGui
             }
 
             // now handle thumbsticks and triggers
-            var leftTriggerPosInfo = _triggerPositions.Left;
-            var rightTriggerPosInfo = _triggerPositions.Right;
+            var leftTriggerPosInfo = TriggerPositions.Left;
+            var rightTriggerPosInfo = TriggerPositions.Right;
 
             DrawTrigger(
                 text: "Left Trigger",
@@ -115,8 +155,8 @@ public static class DimGui
                 value: triggers.Right);
 
             // for thumbsticks, draw a rectangle with a dot in the middle whose position is based on the thumbstick's 2d value
-            var leftThumbStickPosInfo = _thumbstickPositions.Left;
-            var rightThumbStickPosInfo = _thumbstickPositions.Right;
+            var leftThumbStickPosInfo = ThumbstickPositions.Left;
+            var rightThumbStickPosInfo = ThumbstickPositions.Right;
 
             DrawThumbstick(
                 text: "Left Thumbstick",
@@ -166,7 +206,7 @@ public static class DimGui
         screenRectSize.Y *= value;
         var fillMax = screenRectMin + screenRectSize;
         ImGui.GetWindowDrawList().AddRectFilled(screenRectMin, fillMax, ImGui.GetColorU32(ImGuiCol.ButtonActive));
-        
+
         var (surfaceRectMin, surfaceRectSize) = NormalizedToSurfaceRect(surfaceMin, surfaceSize, rect01);
         // draw text box for label and border
         DrawTextBox(text, surfaceRectMin, surfaceRectSize, false);
@@ -183,15 +223,14 @@ public static class DimGui
         var (min, size) = NormalizedToSurfaceRect(surfaceMin, surfaceSize, rect01);
         size = new Vector2(Math.Max(size.X, size.Y)); // square
         DrawTextBox(text, min, size, false);
-        
-        
-        
+
+
         var (screenRectMin, _) = NormalizedToSurfaceRect(screenMin, surfaceSize, rect01);
         var halfSize = size * 0.5f;
         var center = screenRectMin + halfSize;
 
         ImGui.GetWindowDrawList().AddCircleFilled(
-            center: center + value * halfSize,
+            center: center + (value with { Y = -value.Y } * halfSize),
             radius: Math.Max(halfSize.X, halfSize.Y) * _stickPositionIndicatorSize,
             col: ImGui.GetColorU32(ImGuiCol.ButtonActive));
     }
@@ -207,53 +246,53 @@ public static class DimGui
 
     private const float _faceButtonSize = 0.105f;
     private const float _stickSize = 0.170f;
-    private static readonly Vector2 _controllerOrigin = new(0, 0.03f);
+    private static readonly Vector2 ControllerOrigin = new(0, 0.03f);
     private const float _stickPositionIndicatorSize = 0.1f;
     private const float _stickButtonIndicatorSize = 0.2f;
 
-    private static readonly Dictionary<JoystickButton, (Vector2 pos01, Vector2 size01)> _buttonDrawPositions01 = new()
+    private static readonly Dictionary<JoystickButton, (Vector2 pos01, Vector2 size01)> ButtonDrawPositions01 = new()
     {
         // Face buttons / right cluster
-        [JoystickButton.ButtonUp] = (new Vector2(0.765f, 0.185f) + _controllerOrigin, new Vector2(_faceButtonSize)),
-        [JoystickButton.ButtonRight] = (new Vector2(0.850f, 0.295f) + _controllerOrigin, new Vector2(_faceButtonSize)),
-        [JoystickButton.ButtonDown] = (new Vector2(0.765f, 0.405f) + _controllerOrigin, new Vector2(_faceButtonSize)),
-        [JoystickButton.ButtonLeft] = (new Vector2(0.680f, 0.295f) + _controllerOrigin, new Vector2(_faceButtonSize)),
+        [JoystickButton.ButtonUp] = (new Vector2(0.765f, 0.185f) + ControllerOrigin, new Vector2(_faceButtonSize)),
+        [JoystickButton.ButtonRight] = (new Vector2(0.850f, 0.295f) + ControllerOrigin, new Vector2(_faceButtonSize)),
+        [JoystickButton.ButtonDown] = (new Vector2(0.765f, 0.405f) + ControllerOrigin, new Vector2(_faceButtonSize)),
+        [JoystickButton.ButtonLeft] = (new Vector2(0.680f, 0.295f) + ControllerOrigin, new Vector2(_faceButtonSize)),
 
         // D-pad / left cluster
-        [JoystickButton.DPadUp] = (new Vector2(0.150f, 0.185f) + _controllerOrigin, new Vector2(_faceButtonSize)),
-        [JoystickButton.DPadRight] = (new Vector2(0.235f, 0.295f) + _controllerOrigin, new Vector2(_faceButtonSize)),
-        [JoystickButton.DPadDown] = (new Vector2(0.150f, 0.405f) + _controllerOrigin, new Vector2(_faceButtonSize)),
-        [JoystickButton.DPadLeft] = (new Vector2(0.065f, 0.295f) + _controllerOrigin, new Vector2(_faceButtonSize)),
+        [JoystickButton.DPadUp] = (new Vector2(0.150f, 0.185f) + ControllerOrigin, new Vector2(_faceButtonSize)),
+        [JoystickButton.DPadRight] = (new Vector2(0.235f, 0.295f) + ControllerOrigin, new Vector2(_faceButtonSize)),
+        [JoystickButton.DPadDown] = (new Vector2(0.150f, 0.405f) + ControllerOrigin, new Vector2(_faceButtonSize)),
+        [JoystickButton.DPadLeft] = (new Vector2(0.065f, 0.295f) + ControllerOrigin, new Vector2(_faceButtonSize)),
 
         // Shoulder buttons
-        [JoystickButton.LeftBumper] = (new Vector2(0.070f, 0.060f) + _controllerOrigin, new Vector2(0.245f, 0.090f)),
-        [JoystickButton.RightBumper] = (new Vector2(0.685f, 0.060f) + _controllerOrigin, new Vector2(0.245f, 0.090f)),
+        [JoystickButton.LeftBumper] = (new Vector2(0.070f, 0.060f) + ControllerOrigin, new Vector2(0.245f, 0.090f)),
+        [JoystickButton.RightBumper] = (new Vector2(0.685f, 0.060f) + ControllerOrigin, new Vector2(0.245f, 0.090f)),
 
         // Centre/system buttons
-        [JoystickButton.Back] = (new Vector2(0.330f, 0.255f) + _controllerOrigin, new Vector2(0.125f, 0.070f)),
-        [JoystickButton.Home] = (new Vector2(0.445f, 0.365f) + _controllerOrigin, new Vector2(0.110f)),
-        [JoystickButton.Start] = (new Vector2(0.545f, 0.255f) + _controllerOrigin, new Vector2(0.125f, 0.070f)),
+        [JoystickButton.Back] = (new Vector2(0.330f, 0.255f) + ControllerOrigin, new Vector2(0.125f, 0.070f)),
+        [JoystickButton.Home] = (new Vector2(0.445f, 0.365f) + ControllerOrigin, new Vector2(0.110f)),
+        [JoystickButton.Start] = (new Vector2(0.545f, 0.255f) + ControllerOrigin, new Vector2(0.125f, 0.070f)),
 
         // Stick buttons
-        [JoystickButton.LeftStick] = (new Vector2(0.245f, 0.650f) + _controllerOrigin,
+        [JoystickButton.LeftStick] = (new Vector2(0.245f, 0.650f) + ControllerOrigin,
             new Vector2(_stickSize * _stickButtonIndicatorSize)),
-        [JoystickButton.RightStick] = (new Vector2(0.585f, 0.650f) + _controllerOrigin,
+        [JoystickButton.RightStick] = (new Vector2(0.585f, 0.650f) + ControllerOrigin,
             new Vector2(_stickSize * _stickButtonIndicatorSize))
     };
 
     // todo - initialize in static constructor to make it legible lol
-    private static readonly DualReadOnlyList<(Vector2 pos01, Vector2 size01)> _thumbstickPositions =
-        new(left: () => _buttonDrawPositions01[JoystickButton.LeftStick] with { size01 = new Vector2(_stickSize) },
-            right: () => _buttonDrawPositions01[JoystickButton.RightStick] with { size01 = new Vector2(_stickSize) });
+    private static readonly DualReadOnlyList<(Vector2 pos01, Vector2 size)> ThumbstickPositions =
+        new(getLeft: () => ButtonDrawPositions01[JoystickButton.LeftStick] with { size01 = new Vector2(_stickSize) },
+            getRight: () => ButtonDrawPositions01[JoystickButton.RightStick] with { size01 = new Vector2(_stickSize) });
 
-    private static readonly DualReadOnlyList<(Vector2 pos01, Vector2 size01)> _triggerPositions =
-        new(left: () => _buttonDrawPositions01[JoystickButton.LeftBumper] with
+    private static readonly DualReadOnlyList<(Vector2 pos01, Vector2 size01)> TriggerPositions =
+        new(getLeft: () => ButtonDrawPositions01[JoystickButton.LeftBumper] with
             {
-                pos01 = new Vector2(_buttonDrawPositions01[JoystickButton.LeftBumper].pos01.X, 0) + _controllerOrigin
+                pos01 = new Vector2(ButtonDrawPositions01[JoystickButton.LeftBumper].pos01.X, 0) + ControllerOrigin
             },
-            right: () => _buttonDrawPositions01[JoystickButton.RightBumper] with
+            getRight: () => ButtonDrawPositions01[JoystickButton.RightBumper] with
             {
-                pos01 = new Vector2(_buttonDrawPositions01[JoystickButton.RightBumper].pos01.X, 0) + _controllerOrigin
+                pos01 = new Vector2(ButtonDrawPositions01[JoystickButton.RightBumper].pos01.X, 0) + ControllerOrigin
             });
 
     [Experimental("IGW0001")]
@@ -266,7 +305,6 @@ public static class DimGui
         var highX = enumValues.GetUpperBound(1);
         var highY = enumValues.GetUpperBound(0);
 
-
         if (getEnumState != null)
         {
             for (var x = lowX; x <= highX; x++)
@@ -274,7 +312,7 @@ public static class DimGui
                 for (var y = lowY; y <= highY; y++)
                 {
                     var enumValue = enumValues[y, x];
-                    if (enumValue.Equals<T>(default))
+                    if (enumValue.EqualsUnsafe(default))
                         continue;
 
                     var down = getEnumState(enumValue, x, y);

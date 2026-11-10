@@ -1,5 +1,6 @@
 using ImGuiNET;
 using Silk.NET.Input;
+using Silk.NET.Maths;
 
 namespace ImGuiWindows;
 
@@ -22,9 +23,9 @@ public class ImguiInputContext
         inputContext.Keyboards.KeyChar += OnKeyChar;
 
         // gamepad events
-        inputContext.Gamepads.ThumbstickMove += OnGamepadThumbstickMove;
         inputContext.Gamepads.TriggerMove += OnGamepadTriggerMove;
         inputContext.Gamepads.ButtonChanged += OnGamepadButtonChanged;
+        inputContext.Gamepads.ThumbstickMove += OnGamepadThumbstickMove;
 
         // joystick events
         inputContext.Joysticks.AxisMove += OnJoystickAxisMove;
@@ -104,13 +105,13 @@ public class ImguiInputContext
 
     private void OnJoystickHatMove(JoystickHatMoveEvent obj)
     {
-        ImGuiLog.Debug($"{nameof(JoystickAxisMoveEvent)} from {obj.Joystick} moved to {obj.Value}");
+        // ImGuiLog.Debug($"{nameof(JoystickHatMoveEvent)} from {obj.Joystick} moved to {obj.Value}");
     }
 
     private void OnJoystickButtonChanged(ButtonChangedEvent<JoystickButton> obj)
     {
-        ImGuiLog.Debug(
-            $"{nameof(ButtonChangedEvent<>)} {obj.Button.Name} from {obj.Device} changed to {obj.Button.IsDown}");
+        // ImGuiLog.Debug(
+           //  $"{nameof(ButtonChangedEvent<>)} {obj.Button.Name} from {obj.Device} changed to {obj.Button.IsDown}");
     }
 
     private void OnPointerScroll(MouseScrollEvent obj)
@@ -122,7 +123,7 @@ public class ImguiInputContext
     private void OnPointerTargetChanged(PointerTargetChangedEvent obj)
     {
         ImGuiLog.Debug(
-            $"{nameof(PointerTargetChangedEvent)} from {obj.Pointer} changed from to {obj.Target} with bounds {obj.OldBounds} to new bounds: {obj.NewBounds}");
+            $"{nameof(PointerTargetChangedEvent)} from {obj.Pointer} changed from to {obj.Target} with bounds {obj.OldBounds.ToLogString()} to new bounds: {obj.NewBounds.ToLogString()}");
     }
 
     private void OnPointerPointChanged(PointChangedEvent obj)
@@ -162,26 +163,23 @@ public class ImguiInputContext
 
     private void OnJoystickAxisMove(JoystickAxisMoveEvent obj)
     {
-        ImGuiLog.Debug(
-            $"{nameof(JoystickAxisMoveEvent)} {obj.Axis} from {obj.Joystick} changed from {obj.Value - obj.Delta} to {obj.Value}");
+        //ImGuiLog.Debug(
+            //$"{nameof(JoystickAxisMoveEvent)} {obj.Axis} from {obj.Joystick} changed from {obj.Value - obj.Delta} to {obj.Value}");
     }
 
     private void OnGamepadButtonChanged(ButtonChangedEvent<JoystickButton> obj)
     {
-        ImGuiLog.Debug(
-            $"{nameof(ButtonChangedEvent<>)} {obj.Button.Name} from {obj.Device} changed to {obj.Button.IsDown}");
+        // ImGuiLog.Debug($"{nameof(ButtonChangedEvent<>)} {obj.Button.Name} from {obj.Device} changed to {obj.Button.IsDown}");
     }
 
     private void OnGamepadTriggerMove(GamepadTriggerMoveEvent obj)
     {
-        ImGuiLog.Debug(
-            $"{nameof(GamepadTriggerMoveEvent)} from {obj.Gamepad} changed from {obj.Value - obj.Delta} to {obj.Value}");
+        //ImGuiLog.Debug($"{nameof(GamepadTriggerMoveEvent)} from {obj.Gamepad} changed from {obj.Value - obj.Delta} to {obj.Value}");
     }
 
     private void OnGamepadThumbstickMove(GamepadThumbstickMoveEvent obj)
     {
-        ImGuiLog.Debug(
-            $"{nameof(GamepadThumbstickMoveEvent)} from {obj.Gamepad} changed from {obj.Value - obj.Delta} to {obj.Value}");
+        //ImGuiLog.Debug($"{nameof(GamepadThumbstickMoveEvent)} from {obj.Gamepad} changed from {obj.Value - obj.Delta} to {obj.Value}");
     }
 
     private void OnKeyChar(KeyCharEvent obj)
@@ -198,7 +196,20 @@ public class ImguiInputContext
         var key = evt.Key;
         // ImGuiLog.Debug($"{nameof(KeyChangedEvent)} {key} from {evt.Keyboard} changed to {key.IsDown}");
         
-        ImGui.GetIO().AddKeyEvent(evt.Key.Name.ToImGuiKey(), evt.Key.IsDown);
+        ImGui.GetIO().AddKeyEvent(key.Name.ToImGuiKey(), key.IsDown);
         //io.SetKeyEventNativeData(imGuiKey, (int) evt.Key.Namscancode);
+    }
+}
+
+internal static class StringExtensionos
+{
+    public static string ToLogString(this Box3D<float> box, int decimals = 4)
+    {
+        return $"Min: {box.Min.ToLogString(decimals)}, Max: {box.Max.ToLogString(decimals)}";
+    }
+
+    public static string ToLogString(this Vector3D<float> point, int decimals)
+    {
+        return $"({Math.Round(point.X, decimals)}, {Math.Round(point.Y, decimals)}, {Math.Round(point.Z, decimals)})";
     }
 }

@@ -1,10 +1,10 @@
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using AppWindows;
 using ImGuiNET;
 using ImGuiWindows.Contracts;
 using ImGuiWindows.DataTypes;
-using Silk.NET.Input;
 
 namespace ImGuiWindows
 {
@@ -71,7 +71,8 @@ namespace ImGuiWindows
             }
         }
 
-        public void Draw(in DrawArgs args, IImguiDrawer drawer, out bool shouldTerminate)
+        public void Draw(in DrawArgs args, ImguiInputContext inputContext, IImguiDrawer drawer,
+            out bool shouldTerminate)
         {
             if (_isDisposed)
             {
@@ -92,22 +93,23 @@ namespace ImGuiWindows
                 ContextToRestore = ImGui.GetCurrentContext(),
                 FontObj = _fontObj,
                 AutoScaleContent = _autoScaleContent,
-                SystemWindowScaling = args.SystemWindowScaling,
+                WindowScaling = args.Display.WindowScaling,
             };
 
-            BeginContext(_context, args, ref c);
+            BeginContext(_context, args, inputContext, ref c);
 
             _contextLock.Exit();
 
             // todo - do we need to lock the context for the duration of this entire method?
             // probably.. since this is not process-based, but rather frame-based
             // so we can't have multiple threads drawing at the same time
-            DrawFrame(drawer, new Vector2(args.Display.DrawableWidth, args.Display.DrawableHeight), args.DeltaSeconds,
-                args.SystemWindowScaling, out shouldTerminate);
+            var imguiSize = new Vector2(args.Display.WindowWidth, args.Display.WindowHeight);
+            DrawFrame(drawer, imguiSize, args.DeltaSeconds, args.Display.WindowScaling,
+                out shouldTerminate);
 
             ImGuiLog.PushLogs();
             _contextLock.Enter();
-            EndContext(ref c, args);
+            EndContext(ref c, inputContext);
             _contextLock.Exit();
         }
 
@@ -118,9 +120,8 @@ namespace ImGuiWindows
         //    ClearColor = Color.FromArgb((int)colorVecByteValue.X, (int)colorVecByteValue.Y, (int)colorVecByteValue.Z, (int)colorVecByteValue.W);
         //}
 
-
-        private static unsafe void BeginContext(nint context, in DrawArgs args,
-            ref ContextContainer c)
+        // todo - DrawArgs should be unnecessary other than render scale?
+        private static unsafe void BeginContext(nint context, in DrawArgs args, ImguiInputContext inputContext, ref ContextContainer c)
         {
             if (c.HasContextToRestore)
             {
@@ -142,9 +143,9 @@ namespace ImGuiWindows
 
             if (c.AutoScaleContent && c.FontObj is not null)
             {
-                Span<float> originalFontScales = stackalloc float[5];
+                // Span<float> originalFontScales = stackalloc float[5];
                 // ApplyScaleFactor(c.FontObj, c.SystemWindowScaling, c.OriginalStyle, originalFontScales);
-                fixed (float* fontScales = c.OriginalFontScales)
+                // fixed (float* fontScales = c.OriginalFontScales)
                 {
                     //     originalFontScales.CopyTo(new Span<float>(fontScales, 5));
                 }
@@ -152,7 +153,7 @@ namespace ImGuiWindows
 
             var io = ImGui.GetIO();
             SetPerFrameImGuiData(ref io, args);
-            args.ImguiInput.BeginImGuiInput(io);
+            inputContext.BeginImGuiInput(io);
 
 
             ImGui.NewFrame();
@@ -183,23 +184,17 @@ namespace ImGuiWindows
             {
                 ref readonly var d = ref args.Display;
 
-                if (d.WindowWidth is not null && d.WindowHeight is not null)
-                {
-                    io.DisplaySize = new Vector2(d.WindowWidth.Value, d.WindowHeight.Value);
-                    io.DisplayFramebufferScale = new Vector2(d.DrawableWidth, d.DrawableHeight) / new Vector2(
-                        d.WindowWidth.Value, d.WindowHeight.Value);
-                }
-                else
-                {
-                    io.DisplaySize = new Vector2(d.DrawableWidth, d.DrawableHeight);
-                    io.DisplayFramebufferScale = Vector2.One;
-                }
+                io.DisplaySize = new Vector2(d.WindowWidth, d.WindowHeight);
+                    
+                // todo - use args.WindowScaling instead??
+                io.DisplayFramebufferScale = 
+                    new Vector2(d.DrawableWidth, d.DrawableHeight) / new Vector2(d.WindowWidth, d.WindowHeight);
 
                 io.DeltaTime = (float)args.DeltaSeconds;
             }
         }
 
-        private static unsafe void EndContext(ref ContextContainer context, in DrawArgs drawArgs)
+        private static unsafe void EndContext(ref ContextContainer context, ImguiInputContext inputContext)
         {
             ImGui.EndFrame();
 
@@ -211,7 +206,7 @@ namespace ImGuiWindows
                 }
             }
 
-            drawArgs.ImguiInput.EndImGuiInput();
+            inputContext.EndImGuiInput();
 
             if (context.HasContextToRestore)
             {
@@ -254,35 +249,9 @@ namespace ImGuiWindows
             public ImFonts? FontObj { get; init; }
             public nint ContextToRestore;
             public bool AutoScaleContent { get; init; }
-            public float SystemWindowScaling { get; init; }
+            public float WindowScaling { get; init; }
 
             public fixed float OriginalFontScales[5];
-        }
-
-        public readonly ref struct DrawArgs(
-            DisplayInfo display,
-            double deltaSeconds,
-            InputContext inputContext,
-            ImguiInputContext imguiInput,
-            float systemWindowScaling)
-        {
-            public readonly DisplayInfo Display = display;
-            public readonly double DeltaSeconds = deltaSeconds;
-            public readonly InputContext InputContext = inputContext;
-            public readonly ImguiInputContext ImguiInput = imguiInput;
-            public readonly float SystemWindowScaling = systemWindowScaling;
-        }
-
-        public readonly ref struct DisplayInfo(
-            int? windowWidth,
-            int? windowHeight,
-            int drawableWidth,
-            int drawableHeight)
-        {
-            public readonly int? WindowWidth = windowWidth;
-            public readonly int? WindowHeight = windowHeight;
-            public readonly int DrawableWidth = drawableWidth;
-            public readonly int DrawableHeight = drawableHeight;
         }
 
 

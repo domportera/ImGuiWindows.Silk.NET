@@ -4,11 +4,9 @@ using ImGuiWindows.DataTypes;
 
 namespace ImGuiWindows;
 
-public sealed class MessageBox<T> : IImguiDrawer<T>
+public sealed class MessageBox<T> : AsyncImguiDrawer<T>
 {
     private readonly int _startingButtonId;
-    private int _framesSinceButtonPress = 0;
-    private bool _buttonPressed = false;
 
     public MessageBox(string message, T[]? buttons, Func<T, string>? toButtonLabel)
     {
@@ -22,15 +20,14 @@ public sealed class MessageBox<T> : IImguiDrawer<T>
         _buttons = buttons;
         _toButtonLabel = toButtonLabel;
         _startingButtonId = Random.Shared.Next(int.MinValue, int.MaxValue);
-        _result = default;
     }
 
-    public void Init()
+    protected override void OnRenderImpl(double deltaSeconds, ImFonts fonts, float dpiScale,
+        ImguiInputContext inputContext, out bool shouldTerminate)
     {
-    }
+        // assigning Result closes the window, so the drawer itself never has to ask for termination
+        shouldTerminate = false;
 
-    public void Draw(double deltaSeconds, ImFonts fonts, float dpiScale, ImguiInputContext ctx, out bool shouldTerminate)
-    {
         var contentRegion = ImGui.GetContentRegionAvail();
         var padding = contentRegion.X * 0.1f;
         var widthAvailable = contentRegion.X - padding;
@@ -79,7 +76,6 @@ public sealed class MessageBox<T> : IImguiDrawer<T>
         var width = ImGui.GetContentRegionAvail().X;
         var size = new Vector2(width, 0);
         var i = _startingButtonId;
-        _framesSinceButtonPress = _buttonPressed ? _framesSinceButtonPress + 1 : 0;
         foreach (var button in _buttons)
         {
             var name = _toButtonLabel.Invoke(button);
@@ -91,8 +87,7 @@ public sealed class MessageBox<T> : IImguiDrawer<T>
 
             if (ImGui.Button(name, size))
             {
-                _result = button;
-                _buttonPressed = true;
+                Result = button;
             }
 
             ImGui.PopID();
@@ -103,9 +98,6 @@ public sealed class MessageBox<T> : IImguiDrawer<T>
         ImGui.PopFont();
 
         DrawSpacing(fonts);
-        
-        // framecount is a hack in case of colliding ids - we want our buttons to reset their pressed state
-        shouldTerminate = _result != null && _framesSinceButtonPress > 0;
 
         return;
 
@@ -126,24 +118,8 @@ public sealed class MessageBox<T> : IImguiDrawer<T>
         }
     }
 
-    public void OnClose()
-    {
-    }
-
-    public void OnFileDrop(IReadOnlyList<string> filePaths)
-    {
-        // do nothing - drag and drop could be supported by another window!
-    }
-
-    public void OnWindowFocusChanged(bool changedTo)
-    {
-        // do nothing
-    }
-
-    public T? Result => _result;
-
     private readonly Func<T, string> _toButtonLabel;
-    private T? _result;
     private readonly T[] _buttons;
     private readonly string _message;
 }
+

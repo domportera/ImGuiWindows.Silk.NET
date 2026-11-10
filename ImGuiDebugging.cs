@@ -84,7 +84,7 @@ public static class ImGuiDebugging
 
     private static void DrawKeyboard(Span<ImGuiKeyData> allKeyData, float renderSize)
     {
-        if (ImGui.Begin("Keyboard"))
+        if (ImGui.Begin("Keyboard (as DearImGui sees it)"))
         {
             const float rectSize = 64f;
             var cellSize = new Vector2(rectSize, rectSize) * renderSize;
@@ -133,6 +133,9 @@ public static class ImGuiDebugging
             ImGui.Checkbox("wants text", ref wantsText);
             ImGui.InputTextMultiline(label: "Text entry test", input: ref textEdit, maxLength: int.MaxValue,
                 Vector2.Zero, ImGuiInputTextFlags.AllowTabInput);
+            var io = ImGui.GetIO();
+            if (io.WantTextInput || textEdit.Length > 0 || io.InputQueueCharacters.Size > 0)
+                ImGuiLog.Debug($"DIAGWID active={ImGui.IsItemActive()} wantText={io.WantTextInput} queue={io.InputQueueCharacters.Size} len={textEdit.Length} text='{textEdit}'");
         }
 
         ImGui.End();

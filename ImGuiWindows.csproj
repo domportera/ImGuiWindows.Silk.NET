@@ -12,12 +12,19 @@
         <!-- allow transitive dependencies to be used in projects that depend on us-->
     </PropertyGroup>
 
+    <PropertyGroup>
+        <!-- Test is a separate project inside this repository; keep its sources and build output out of this one. -->
+        <DefaultItemExcludes>$(DefaultItemExcludes);Test/**</DefaultItemExcludes>
+    </PropertyGroup>
+
     <ItemGroup>
-        <ProjectReference Include="..\Common\Common.csproj" />
-        <ProjectReference Include="..\Silk.NET\sources\Core\Core\Silk.NET.Core.csproj"/>
-        <ProjectReference Include="..\Silk.NET\sources\Input\Input\Silk.NET.Input.csproj"/>
-        <ProjectReference Include="..\Silk.NET\sources\Maths\Maths\Silk.NET.Maths.csproj"/>
-        <ProjectReference Include="..\Silk.NET\sources\Windowing\Windowing\Silk.NET.Windowing.csproj"/>
+        <ProjectReference Include="..\AppWindows.Silk.NET\Common\Common.csproj" />
+        <ProjectReference Include="..\AppWindows.Silk.NET\AppWindows\AppWindows.csproj" />
+        <ProjectReference Include="..\AppWindows.Silk.NET\Silk.NET\sources\Core\Core\Silk.NET.Core.csproj"/>
+        <ProjectReference Include="..\AppWindows.Silk.NET\Silk.NET\sources\OpenGL\OpenGL\Silk.NET.OpenGL.csproj"/>
+        <ProjectReference Include="..\AppWindows.Silk.NET\Silk.NET\sources\Input\Input\Silk.NET.Input.csproj"/>
+        <ProjectReference Include="..\AppWindows.Silk.NET\Silk.NET\sources\Maths\Maths\Silk.NET.Maths.csproj"/>
+        <ProjectReference Include="..\AppWindows.Silk.NET\Silk.NET\sources\Windowing\Windowing\Silk.NET.Windowing.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

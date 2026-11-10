@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <OutputType>Exe</OutputType>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <PublishAot>true</PublishAot>
+        <InvariantGlobalization>true</InvariantGlobalization>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\ImGuiWindows.csproj" />
+      <!-- AppWindows is the rendering host provided by the sibling submodule of the LinKb checkout -->
+      <ProjectReference Include="..\..\AppWindows.Silk.NET\AppWindows\AppWindows.csproj" />
+    </ItemGroup>
+
+</Project>
